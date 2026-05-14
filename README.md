@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # VancoCalc Pro
 
 > A modern vancomycin AUC₂₄-guided dosing calculator. Built on first-order, one-compartment population pharmacokinetics aligned with the **2020 ASHP/IDSA Vancomycin Therapeutic Monitoring Consensus Guideline**.
@@ -122,3 +123,6 @@ Proprietary. See [LICENSE](./LICENSE).
 ## Authors
 
 **Shan Siddique, PharmD** — TheraIntel
+=======
+# vanccalc
+>>>>>>> bb3add6942b7ec116a17db500649f8502f517a50

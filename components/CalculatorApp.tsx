@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import { Sidebar } from "./Sidebar";
 import { SuggestedDose } from "./SuggestedDose";
 import { CompareDosing } from "./CompareDosing";
@@ -118,7 +119,10 @@ export default function CalculatorApp() {
           <strong className="uppercase tracking-wider text-ink-600 dark:text-ink-400">Disclaimer:</strong>{" "}
           This tool is for informational purposes only and intended for healthcare professionals.
           It is <strong>not</strong> a substitute for professional medical advice, dosing, diagnosis, or treatment.
-          <div className="mt-1 opacity-70">© {new Date().getFullYear()} TheraIntel · VancoCalc Pro v0.1</div>
+          <div className="mt-2 flex items-center justify-center gap-2 opacity-70">
+            <Image src="/theraintel-logo.png" alt="TheraIntel" width={80} height={18} className="object-contain" />
+            <span>· VancoCalc Pro v0.1</span>
+          </div>
         </footer>
       </main>
     </div>

@@ -4,6 +4,7 @@ import { CheckCircle2, Circle, Info, Beaker, FlaskConical, User, Trash2 } from "
 import clsx from "clsx";
 import { Toggle } from "./Toggle";
 import type { PatientInput } from "@/lib/types";
+import Image from "next/image";
 
 interface SidebarProps {
   patient: Partial<PatientInput>;
@@ -35,11 +36,15 @@ export function Sidebar({ patient, setPatient, complete, onClear, onLoadExample 
     <aside className="w-full lg:w-80 lg:min-h-screen bg-gradient-to-b from-ink-900 to-ink-950 text-ink-100 p-6 lg:sticky lg:top-0">
       {/* Brand */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-accent-500 flex items-center justify-center shadow-glow">
-            <FlaskConical className="w-4 h-4 text-ink-900" />
-          </div>
-          <span className="text-xs uppercase tracking-widest text-ink-400">TheraIntel</span>
+        <div className="mb-3">
+          <Image
+            src="/theraintel-logo.png"
+            alt="TheraIntel"
+            width={160}
+            height={36}
+            className="object-contain"
+            priority
+          />
         </div>
         <h1 className="text-2xl font-bold tracking-tight">VancoCalc <span className="text-brand-400">Pro</span></h1>
         <p className="text-xs text-ink-400 mt-1">
