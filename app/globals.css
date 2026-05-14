@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --brand: #0891b2;
+  --accent: #10b981;
+}
+
+.dark {
+  --bg: #020617;
+  --surface: #0f172a;
+  --ink: #e2e8f0;
+  --muted: #94a3b8;
+  --border: #1e293b;
+  --brand: #22d3ee;
+  --accent: #34d399;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv02", "cv11", "ss01";
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border bg-white shadow-card border-ink-200 dark:bg-ink-900 dark:border-ink-800;
+  }
+  .card-title {
+    @apply text-sm font-semibold tracking-wide uppercase text-ink-500 dark:text-ink-400;
+  }
+  .stat-label {
+    @apply text-xs text-ink-500 dark:text-ink-400;
+  }
+  .stat-value {
+    @apply text-sm font-medium text-ink-900 dark:text-ink-100 tabular-nums;
+  }
+  .field-label {
+    @apply text-xs font-medium text-ink-600 dark:text-ink-300 mb-1 block;
+  }
+  .field-input {
+    @apply w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none transition
+      border-ink-200 text-ink-900 placeholder:text-ink-400
+      focus:ring-2 focus:ring-brand-500 focus:border-brand-500
+      dark:bg-ink-950 dark:border-ink-700 dark:text-ink-100 dark:placeholder:text-ink-500;
+  }
+  .toggle-group {
+    @apply inline-flex rounded-lg border border-ink-200 bg-ink-50 p-0.5 dark:border-ink-700 dark:bg-ink-900;
+  }
+  .toggle-btn {
+    @apply px-3 py-1 text-xs font-medium rounded-md transition text-ink-600 dark:text-ink-300;
+  }
+  .toggle-btn-active {
+    @apply bg-brand-600 text-white shadow-sm dark:bg-brand-500;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white
+      hover:bg-brand-700 transition shadow-sm;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100
+      dark:text-ink-300 dark:hover:bg-ink-800 transition;
+  }
+  .tab-btn {
+    @apply px-3 py-1.5 text-xs font-semibold rounded-md text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-ink-100 transition;
+  }
+  .tab-btn-active {
+    @apply bg-white text-ink-900 shadow-sm dark:bg-ink-800 dark:text-ink-100;
+  }
+}
+
+/* recharts axis tweaks */
+.recharts-cartesian-axis-tick-value {
+  font-size: 11px;
+  fill: var(--muted);
+}
+.recharts-cartesian-grid-vertical line,
+.recharts-cartesian-grid-horizontal line {
+  stroke: var(--border);
+}
