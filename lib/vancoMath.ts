@@ -1,5 +1,6 @@
 // Vancomycin population PK engine.
 // References: ASHP/IDSA 2020 Vancomycin Guideline; Matzke et al.; Crass et al.
+//             Ambrose PJ, Winter ME. Basic Clinical Pharmacokinetics, 4th ed. 2004.
 // Method: one-compartment, first-order elimination, intermittent infusion at steady state.
 // AUC24-based dosing is the consensus target (AUC24/MIC 400-600, MIC=1).
 
@@ -10,6 +11,8 @@ import type {
   RegimenResult,
   TargetRange,
   SimulationPoint,
+  SingleLevelInput,
+  SingleLevelResult,
 } from "./types";
 
 // Absolute per-dose ceiling (mg). Clinical doses above this warrant extra verification
@@ -203,6 +206,128 @@ export function compareFrequencies(
     const regimen = buildRegimen(weightCapped, tau);
     return evaluateRegimen(regimen, pk, target.mic);
   });
+}
+
+// ---------- Ambrose-Winter single-trough analysis ----------
+
+/**
+ * Ambrose-Winter volume of distribution estimate.
+ * Vd (L) = (0.17 × age_yrs) + (0.22 × TBW_kg) + 15
+ * Reference: Ambrose PJ, Winter ME. Basic Clinical Pharmacokinetics, 4th ed. 2004:451-76.
+ * Note: TBW is used even in obese patients per the original published equation.
+ */
+export function ambrosWinterVd(age: number, weightKg: number): number {
+  return 0.17 * age + 0.22 * weightKg + 15;
+}
+
+/**
+ * Single-level analysis using the Ambrose-Winter back-calculation method.
+ *
+ * Algorithm (two-iteration):
+ *  1. Select Vd (Ambrose-Winter, population, or manual)
+ *  2. Use population ke as seed
+ *  3. Extrapolate true trough: Cmin_true = Cmeas × e^(−ke × t_before_next)
+ *  4. Estimate peak: Cmax ≈ Cmin_true + Dose/Vd  (Ambrose-Winter simplification)
+ *  5. Patient-specific ke: ke = ln(Cmax/Cmin_true) / (tau − t_inf)
+ *  6. Repeat steps 3-5 once more with updated ke (converges in 2 passes)
+ *  7. Recommend new regimen targeting AUC goal using patient-specific CL
+ */
+export function singleLevelAnalysis(
+  input: SingleLevelInput,
+  normalized: NormalizedPatient,
+  target: TargetRange = DEFAULT_TARGET
+): SingleLevelResult {
+  const popPk = pkParams(normalized);
+
+  // Step 1: Select Vd
+  let vd: number;
+  switch (input.vdMethod) {
+    case "ambrose-winter":
+      vd = ambrosWinterVd(normalized.age, normalized.weightKg);
+      break;
+    case "manual":
+      vd = (input.manualVdLPerKg ?? 0.7) * normalized.weightKg;
+      break;
+    default: // "population"
+      vd = popPk.vd;
+  }
+  const vdPerKg = vd / normalized.weightKg;
+
+  // Steps 2-5: Iterative ke back-calculation (2 passes converges reliably)
+  let ke_pt = popPk.ke;
+  let trueTrough = input.measuredTrough;
+  let estimatedPeak = input.measuredTrough + input.currentDose / vd;
+
+  for (let iter = 0; iter < 2; iter++) {
+    // Extrapolate to true trough just before next dose
+    trueTrough =
+      input.hoursBeforeNextDose > 0
+        ? input.measuredTrough * Math.exp(-ke_pt * input.hoursBeforeNextDose)
+        : input.measuredTrough;
+
+    // Ambrose-Winter peak estimate: Cmax ≈ Cmin + Dose/Vd
+    estimatedPeak = trueTrough + input.currentDose / vd;
+
+    // Patient-specific ke from ln(peak/trough) / time between peak and trough
+    const tPeakToTrough = input.currentFrequency - input.currentInfusionTime;
+    if (tPeakToTrough > 0 && estimatedPeak > trueTrough && trueTrough > 0) {
+      ke_pt = Math.log(estimatedPeak / trueTrough) / tPeakToTrough;
+    }
+  }
+
+  // Apply floor to prevent nonsensical values
+  ke_pt = Math.max(ke_pt, 0.001);
+  const cl = ke_pt * vd;
+  const halfLife = 0.693 / ke_pt;
+
+  const patientPk: PKParams = {
+    crCl: popPk.crCl,
+    vd,
+    vdPerKg,
+    ke: ke_pt,
+    halfLife,
+    cl,
+    ibw: popPk.ibw,
+    adjBw: popPk.adjBw,
+    bmi: popPk.bmi,
+  };
+
+  // Current regimen metrics using patient-specific PK
+  const currentAuc24 = auc24FromDose(
+    input.currentDose,
+    input.currentFrequency,
+    patientPk
+  );
+
+  const currentRegimen: DoseRegimen = {
+    dose: input.currentDose,
+    frequency: input.currentFrequency,
+    infusionTime: input.currentInfusionTime,
+    doseCapped: false,
+  };
+
+  // Recommend new regimen targeting AUC goal with patient-specific CL
+  const { regimen: recommendedRegimen, result: recommendedResult } = recommendRegimen(
+    patientPk,
+    normalized.weightKg,
+    { target }
+  );
+
+  return {
+    vd,
+    vdPerKg,
+    ke: ke_pt,
+    halfLife,
+    cl,
+    patientPk,
+    populationPk: popPk,
+    trueTrough,
+    estimatedPeak,
+    currentAuc24,
+    currentRegimen,
+    recommendedRegimen,
+    recommendedResult,
+  };
 }
 
 // ---------- time-concentration simulation (multi-dose, superposition) ----------

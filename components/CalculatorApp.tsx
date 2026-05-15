@@ -10,6 +10,7 @@ import { PredictedPK } from "./PredictedPK";
 import { KineticParams } from "./KineticParams";
 import { CalcInfo } from "./CalcInfo";
 import { AboutCard } from "./AboutCard";
+import { SingleLevelAnalysis } from "./SingleLevelAnalysis";
 import { isPatientComplete, normalizePatient, validatePatient } from "@/lib/units";
 import {
   pkParams,
@@ -18,6 +19,8 @@ import {
   recommendLoadingDose,
 } from "@/lib/vancoMath";
 import type { PatientInput, RegimenResult, TargetRange } from "@/lib/types";
+
+type Tab = "empiric" | "single-level";
 
 const DEFAULT_TARGET: TargetRange = { aucMin: 400, aucMax: 600, mic: 1 };
 
@@ -45,6 +48,7 @@ export default function CalculatorApp() {
   const [target, setTarget] = useState<TargetRange>(DEFAULT_TARGET);
   const [selectedFreq, setSelectedFreq] = useState<number | undefined>(undefined);
   const [dark, setDark] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("empiric");
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -64,8 +68,6 @@ export default function CalculatorApp() {
 
   const hasErrors = !!validation && validation.errors.length > 0;
 
-  // Block PK computation only on hard errors (impossible physiological values).
-  // Warnings allow results to render — they are surfaced in the banner above.
   const pk = useMemo(
     () => (normalized && !hasErrors ? pkParams(normalized) : null),
     [normalized, hasErrors]
@@ -125,7 +127,20 @@ export default function CalculatorApp() {
 
       <main className="flex-1 p-4 lg:p-8">
         {/* Top bar */}
-        <div className="flex justify-end mb-5">
+        <div className="flex items-center justify-between mb-6">
+          {/* Tab bar */}
+          <div className="flex gap-1 bg-ink-100 dark:bg-ink-900 p-1 rounded-xl">
+            <TabBtn active={activeTab === "empiric"} onClick={() => setActiveTab("empiric")}>
+              Empiric Dosing
+            </TabBtn>
+            <TabBtn
+              active={activeTab === "single-level"}
+              onClick={() => setActiveTab("single-level")}
+            >
+              Single-Level Adjustment
+            </TabBtn>
+          </div>
+
           <button
             onClick={() => setDark((d) => !d)}
             className="btn-ghost text-ink-500 dark:text-ink-400"
@@ -173,24 +188,44 @@ export default function CalculatorApp() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
-          <SuggestedDose
-            result={selectedResult}
-            loadingDose={loadingDose}
-            target={target}
-            criticallyIll={!!patient.criticallyIll}
-          />
-          <CompareDosing
-            options={comparison}
-            target={target}
-            onSelect={handleSelect}
-            selectedFrequency={selectedResult?.regimen.frequency}
-          />
-          <PredictedPK pk={pk} result={selectedResult} />
-          <CalcInfo hasResult={!!selectedResult} />
-          <KineticParams pk={pk} />
-          <AboutCard onLoadExample={handleLoadExample} />
-        </div>
+        {/* ── Empiric Dosing tab ── */}
+        {activeTab === "empiric" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
+            <SuggestedDose
+              result={selectedResult}
+              loadingDose={loadingDose}
+              target={target}
+              criticallyIll={!!patient.criticallyIll}
+            />
+            <CompareDosing
+              options={comparison}
+              target={target}
+              onSelect={handleSelect}
+              selectedFrequency={selectedResult?.regimen.frequency}
+            />
+            <PredictedPK pk={pk} result={selectedResult} />
+            <CalcInfo hasResult={!!selectedResult} />
+            <KineticParams pk={pk} />
+            <AboutCard onLoadExample={handleLoadExample} />
+          </div>
+        )}
+
+        {/* ── Single-Level Adjustment tab ── */}
+        {activeTab === "single-level" && (
+          <>
+            {!complete || hasErrors ? (
+              <div className="card p-8 text-center text-sm text-ink-500 dark:text-ink-400">
+                Complete patient demographics in the sidebar to use single-level analysis.
+              </div>
+            ) : (
+              <SingleLevelAnalysis
+                normalized={normalized!}
+                populationPk={pk!}
+                target={target}
+              />
+            )}
+          </>
+        )}
 
         <footer className="mt-8 pt-6 border-t border-ink-200 dark:border-ink-800 text-center text-[11px] text-ink-500 dark:text-ink-500 leading-relaxed">
           <strong className="uppercase tracking-wider text-ink-600 dark:text-ink-400">
@@ -212,5 +247,24 @@ export default function CalculatorApp() {
         </footer>
       </main>
     </div>
+  );
+}
+
+function TabBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`tab-btn ${active ? "tab-btn-active" : ""}`}
+    >
+      {children}
+    </button>
   );
 }
