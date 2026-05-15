@@ -50,7 +50,7 @@ export function Sidebar({
       <div className="mb-6">
         <div className="mb-3">
           <Image
-            src="/logo2.png"
+            src="/theraintel-logo.png"
             alt="TheraIntel"
             width={160}
             height={36}
