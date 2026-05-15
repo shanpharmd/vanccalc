@@ -66,10 +66,9 @@ export function CompareDosing({ options, target, onSelect, selectedFrequency }: 
                     <span className="inline-flex items-center gap-1 justify-end">
                       {fmt.mg(r.regimen.dose)}
                       {r.regimen.doseCapped && (
-                        <AlertTriangle
-                          className="w-3 h-3 text-amber-500 shrink-0"
-                          title="Dose capped at 3,500 mg absolute maximum"
-                        />
+                        <span title="Dose capped at 3,500 mg absolute maximum">
+                          <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                        </span>
                       )}
                     </span>
                   </td>
