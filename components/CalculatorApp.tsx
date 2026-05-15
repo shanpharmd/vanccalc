@@ -8,8 +8,7 @@ import { SuggestedDose } from "./SuggestedDose";
 import { CompareDosing } from "./CompareDosing";
 import { PredictedPK } from "./PredictedPK";
 import { KineticParams } from "./KineticParams";
-import { CalcInfo } from "./CalcInfo";
-import { AboutCard } from "./AboutCard";
+import { MethodologyCard } from "./MethodologyCard";
 import { SingleLevelAnalysis } from "./SingleLevelAnalysis";
 import { isPatientComplete, normalizePatient, validatePatient } from "@/lib/units";
 import {
@@ -204,9 +203,8 @@ export default function CalculatorApp() {
               selectedFrequency={selectedResult?.regimen.frequency}
             />
             <PredictedPK pk={pk} result={selectedResult} />
-            <CalcInfo hasResult={!!selectedResult} />
+            <MethodologyCard pk={pk} normalized={normalized} />
             <KineticParams pk={pk} />
-            <AboutCard onLoadExample={handleLoadExample} />
           </div>
         )}
 
