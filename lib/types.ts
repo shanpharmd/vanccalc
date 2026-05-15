@@ -6,6 +6,19 @@ export type HeightUnit = "in" | "cm";
 export type CrUnit = "mg/dL" | "umol/L";
 export type VdMethod = "ambrose-winter" | "population" | "manual";
 
+/**
+ * Fractional limb-weight correction used to estimate pre-amputation body weight
+ * for Cockcroft-Gault and Salazar-Corcoran CrCl calculations.
+ * Source: Wurtz et al.; published limb-weight fraction estimates.
+ */
+export type AmputationType =
+  | "none"
+  | "bka_one"    // below-knee, one leg — ~5.9% TBW
+  | "aka_one"    // above-knee, one leg — ~11% TBW
+  | "full_leg"   // entire leg — ~16% TBW
+  | "bea_one"    // below-elbow, one arm — ~2.3% TBW
+  | "full_arm";  // entire arm — ~5% TBW
+
 export interface PatientInput {
   age: number;               // years
   weight: number;
@@ -17,27 +30,34 @@ export interface PatientInput {
   creatinineUnit: CrUnit;
   criticallyIll: boolean;
   noRenalReplacement: boolean;
+  amputationType?: AmputationType;  // optional; adjusts CrCl weight only
+  empiricVdLPerKg?: number;         // optional Vd override (L/kg) for empiric dosing
 }
 
 export interface NormalizedPatient {
   age: number;
-  weightKg: number;
+  weightKg: number;             // actual measured weight — used for dosing and Vd
+  correctedWeightKg: number;    // amputation-adjusted weight — used for CrCl only
+  amputationFactor: number;     // fraction applied (0 = none; e.g. 0.059 = BKA)
   heightCm: number;
   sex: Sex;
-  scrMgDl: number;           // SCr after applying floor; use this for all PK math
+  scrMgDl: number;              // SCr after applying floor; use this for all PK math
   criticallyIll: boolean;
   noRenalReplacement: boolean;
+  empiricVdLPerKg?: number;     // if set, overrides auto Vd selection in pkParams
 }
 
 export interface PKParams {
-  crCl: number;              // mL/min (Cockcroft-Gault)
-  vd: number;                // L (total)
-  vdPerKg: number;           // L/kg
-  ke: number;                // 1/hr
-  halfLife: number;          // hr
-  cl: number;                // L/hr
-  ibw: number;               // kg
-  adjBw: number;             // kg
+  crCl: number;                              // mL/min
+  crClMethod: "cockcroft-gault" | "salazar-corcoran";
+  amputationCorrectionPct?: number;          // e.g. 5.9 for BKA; undefined when none
+  vd: number;                                // L (total)
+  vdPerKg: number;                           // L/kg
+  ke: number;                                // 1/hr
+  halfLife: number;                          // hr
+  cl: number;                                // L/hr
+  ibw: number;                               // kg
+  adjBw: number;                             // kg
   bmi: number;
 }
 

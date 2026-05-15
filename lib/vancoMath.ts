@@ -31,44 +31,71 @@ export function ibwKg(p: NormalizedPatient): number {
 
 export function adjBwKg(p: NormalizedPatient): number {
   const ibw = ibwKg(p);
-  // If TBW > 120% IBW: AdjBW = IBW + 0.4 × (TBW − IBW)
+  // AdjBW uses actual measured weight (weightKg) — for display and dosing weight decisions.
   return p.weightKg > 1.2 * ibw ? ibw + 0.4 * (p.weightKg - ibw) : p.weightKg;
 }
 
 export function bmi(p: NormalizedPatient): number {
   const m = p.heightCm / 100;
-  return p.weightKg / (m * m);
+  // correctedWeightKg = estimated full-body weight; used for obesity classification.
+  return p.correctedWeightKg / (m * m);
 }
 
 // ---------- renal function ----------
 
 export function crClCockcroftGault(p: NormalizedPatient): number {
   const ibw = ibwKg(p);
-  // Standard CG weight selection:
-  //   TBW ≤ 1.2×IBW (non-obese) → use TBW (actual body weight)
-  //   TBW > 1.2×IBW (obese)     → use AdjBW to avoid overestimating CrCl
-  // Note: scrMgDl has the SCR_FLOOR applied upstream in normalizePatient.
-  const weightForCG = p.weightKg > 1.2 * ibw ? adjBwKg(p) : p.weightKg;
+  // Use correctedWeightKg (amputation-adjusted) for weight selection and CG formula.
+  // TBW ≤ 1.2×IBW → use correctedTBW; TBW > 1.2×IBW (obese) → use AdjBW of correctedTBW.
+  const cw = p.correctedWeightKg;
+  const adjBwForCrCl = cw > 1.2 * ibw ? ibw + 0.4 * (cw - ibw) : cw;
+  const weightForCG = cw > 1.2 * ibw ? adjBwForCrCl : cw;
   const sexFactor = p.sex === "female" ? 0.85 : 1;
-  const crCl =
-    ((140 - p.age) * weightForCG) / (72 * p.scrMgDl) * sexFactor;
-  return Math.max(crCl, 5); // floor to avoid div-by-zero in downstream calcs
+  return Math.max(((140 - p.age) * weightForCG) / (72 * p.scrMgDl) * sexFactor, 5);
+}
+
+/**
+ * Salazar-Corcoran CrCl — preferred for BMI ≥40 (morbidly obese patients).
+ * Incorporates height directly, avoiding the IBW/AdjBW approximation that CG requires.
+ * Reference: Salazar DE, Corcoran GB. Am J Med 1988;84(6):1053-60.
+ * Uses correctedWeightKg (amputation-adjusted TBW) to match the original derivation population.
+ */
+export function salazarCorcoranCrCl(p: NormalizedPatient): number {
+  const heightM = p.heightCm / 100;
+  const h2 = heightM * heightM;
+  const cw = p.correctedWeightKg;
+  if (p.sex === "male") {
+    return Math.max(((137 - p.age) * (0.285 * cw + 12.1 * h2)) / (51 * p.scrMgDl), 5);
+  }
+  return Math.max(((146 - p.age) * (0.287 * cw + 9.74 * h2)) / (60 * p.scrMgDl), 5);
 }
 
 // ---------- PK params ----------
 
 export function pkParams(p: NormalizedPatient): PKParams {
-  const crCl = crClCockcroftGault(p);
+  const bmiVal = bmi(p);
+  // Auto-select CrCl formula: Salazar-Corcoran at BMI ≥40, Cockcroft-Gault otherwise.
+  const useSalazar = bmiVal >= 40;
+  const crCl = useSalazar ? salazarCorcoranCrCl(p) : crClCockcroftGault(p);
+  const crClMethod = useSalazar ? "salazar-corcoran" as const : "cockcroft-gault" as const;
+
   // Matzke et al. ke (1/hr) from CrCl (mL/min):
   // ke = 0.00083 × CrCl + 0.0044
   const ke = 0.00083 * crCl + 0.0044;
-  const vdPerKg = p.criticallyIll ? 0.8 : 0.7; // ICU patients have larger Vd
+
+  // Vd: use manual override if provided, otherwise auto (ICU = 0.8 L/kg, non-ICU = 0.7 L/kg).
+  // Vd scales with actual body weight (weightKg), not corrected weight.
+  const vdPerKg = p.empiricVdLPerKg ?? (p.criticallyIll ? 0.8 : 0.7);
   const vd = vdPerKg * p.weightKg;
   const cl = ke * vd;
   const halfLife = 0.693 / ke;
 
   return {
     crCl,
+    crClMethod,
+    amputationCorrectionPct: p.amputationFactor > 0
+      ? Math.round(p.amputationFactor * 1000) / 10
+      : undefined,
     vd,
     vdPerKg,
     ke,
@@ -76,7 +103,7 @@ export function pkParams(p: NormalizedPatient): PKParams {
     cl,
     ibw: ibwKg(p),
     adjBw: adjBwKg(p),
-    bmi: bmi(p),
+    bmi: bmiVal,
   };
 }
 
@@ -282,6 +309,8 @@ export function singleLevelAnalysis(
 
   const patientPk: PKParams = {
     crCl: popPk.crCl,
+    crClMethod: popPk.crClMethod,
+    amputationCorrectionPct: popPk.amputationCorrectionPct,
     vd,
     vdPerKg,
     ke: ke_pt,

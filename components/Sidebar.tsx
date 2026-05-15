@@ -1,8 +1,17 @@
 "use client";
 
-import { CheckCircle2, Circle, Sliders, Trash2, User } from "lucide-react";
+import { CheckCircle2, Circle, Scissors, Sliders, Trash2, User } from "lucide-react";
 import { Toggle } from "./Toggle";
-import type { PatientInput, TargetRange } from "@/lib/types";
+import type { AmputationType, PatientInput, TargetRange } from "@/lib/types";
+
+const AMPUTATION_OPTIONS: { value: AmputationType; label: string }[] = [
+  { value: "none",     label: "None" },
+  { value: "bka_one",  label: "Below-knee, one leg (−5.9%)" },
+  { value: "aka_one",  label: "Above-knee, one leg (−11%)" },
+  { value: "full_leg", label: "Entire leg (−16%)" },
+  { value: "bea_one",  label: "Below-elbow, one arm (−2.3%)" },
+  { value: "full_arm", label: "Entire arm (−5%)" },
+];
 import Image from "next/image";
 
 interface SidebarProps {
@@ -159,6 +168,26 @@ export function Sidebar({
               (CRRT, HD, PD)
             </span>
           </label>
+
+          <Field label="Amputation">
+            <select
+              value={patient.amputationType ?? "none"}
+              onChange={(e) => update("amputationType", e.target.value as AmputationType)}
+              className="field-input bg-ink-800 text-ink-100 text-xs"
+            >
+              {AMPUTATION_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {patient.amputationType && patient.amputationType !== "none" && (
+              <p className="text-[10px] text-amber-400 mt-1 leading-snug">
+                CrCl weight adjusted upward to estimate pre-amputation creatinine
+                production. Dosing weight unchanged.
+              </p>
+            )}
+          </Field>
         </div>
       </Section>
 
@@ -201,12 +230,35 @@ export function Sidebar({
               className="field-input"
             />
           </Field>
+          <Field label="Vd (L/kg)">
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.05"
+              value={patient.empiricVdLPerKg ?? ""}
+              placeholder={`Auto (${patient.criticallyIll ? "0.80" : "0.70"})`}
+              onChange={(e) =>
+                update(
+                  "empiricVdLPerKg",
+                  e.target.value === "" ? undefined : Number(e.target.value)
+                )
+              }
+              className="field-input"
+            />
+            <p className="text-[10px] text-ink-500 mt-1 leading-snug">
+              Typical range 0.45–0.90 L/kg. Leave blank for auto (0.70; 0.80 ICU).
+              Override for burns, CHF, or patient-specific data.
+            </p>
+          </Field>
           <p className="text-[11px] text-ink-500 leading-snug">
             Default: AUC₂₄ 400–600 · MIC 1.0 (ASHP/IDSA 2020). Adjust only if
             your institution protocol or susceptibility data differs.
           </p>
           <button
-            onClick={() => setTarget({ aucMin: 400, aucMax: 600, mic: 1 })}
+            onClick={() => {
+              setTarget({ aucMin: 400, aucMax: 600, mic: 1 });
+              update("empiricVdLPerKg", undefined);
+            }}
             className="text-[11px] text-brand-400 hover:text-brand-300 transition"
           >
             Reset to defaults
