@@ -12,10 +12,14 @@ import type {
   SimulationPoint,
 } from "./types";
 
+// Absolute per-dose ceiling (mg). Clinical doses above this warrant extra verification
+// and individualized Bayesian dosing. ASHP recommends max infusion rate 1000 mg/hr.
+export const MAX_DOSE_MG = 3500;
+
 // ---------- body size ----------
 
 export function ibwKg(p: NormalizedPatient): number {
-  // Devine formula. Use height in inches.
+  // Devine formula. Height in inches.
   const heightIn = p.heightCm / 2.54;
   const base = p.sex === "male" ? 50 : 45.5;
   const above60 = Math.max(0, heightIn - 60);
@@ -24,7 +28,7 @@ export function ibwKg(p: NormalizedPatient): number {
 
 export function adjBwKg(p: NormalizedPatient): number {
   const ibw = ibwKg(p);
-  // If TBW > 120% IBW use AdjBW = IBW + 0.4 × (TBW - IBW)
+  // If TBW > 120% IBW: AdjBW = IBW + 0.4 × (TBW − IBW)
   return p.weightKg > 1.2 * ibw ? ibw + 0.4 * (p.weightKg - ibw) : p.weightKg;
 }
 
@@ -36,11 +40,15 @@ export function bmi(p: NormalizedPatient): number {
 // ---------- renal function ----------
 
 export function crClCockcroftGault(p: NormalizedPatient): number {
-  // Use IBW if TBW > IBW, else TBW (avoid overestimating CrCl in underweight)
   const ibw = ibwKg(p);
-  const weightForCG = p.weightKg > 1.2 * ibw ? adjBwKg(p) : Math.min(p.weightKg, ibw);
+  // Standard CG weight selection:
+  //   TBW ≤ 1.2×IBW (non-obese) → use TBW (actual body weight)
+  //   TBW > 1.2×IBW (obese)     → use AdjBW to avoid overestimating CrCl
+  // Note: scrMgDl has the SCR_FLOOR applied upstream in normalizePatient.
+  const weightForCG = p.weightKg > 1.2 * ibw ? adjBwKg(p) : p.weightKg;
   const sexFactor = p.sex === "female" ? 0.85 : 1;
-  const crCl = ((140 - p.age) * weightForCG) / (72 * p.scrMgDl) * sexFactor;
+  const crCl =
+    ((140 - p.age) * weightForCG) / (72 * p.scrMgDl) * sexFactor;
   return Math.max(crCl, 5); // floor to avoid div-by-zero in downstream calcs
 }
 
@@ -48,7 +56,7 @@ export function crClCockcroftGault(p: NormalizedPatient): number {
 
 export function pkParams(p: NormalizedPatient): PKParams {
   const crCl = crClCockcroftGault(p);
-  // Matzke et al. ke (1/hr) from CrCl (mL/min)
+  // Matzke et al. ke (1/hr) from CrCl (mL/min):
   // ke = 0.00083 × CrCl + 0.0044
   const ke = 0.00083 * crCl + 0.0044;
   const vdPerKg = p.criticallyIll ? 0.8 : 0.7; // ICU patients have larger Vd
@@ -72,7 +80,7 @@ export function pkParams(p: NormalizedPatient): PKParams {
 // ---------- concentration math (intermittent infusion, steady state) ----------
 
 export function ssPeak(dose: number, tInf: number, tau: number, pk: PKParams): number {
-  // Cmax,ss at end of infusion
+  // Cmax,ss at end of infusion:
   // Cmax = (D / (tInf × CL)) × (1 − e^(−ke·tInf)) / (1 − e^(−ke·tau))
   const num = 1 - Math.exp(-pk.ke * tInf);
   const den = 1 - Math.exp(-pk.ke * tau);
@@ -89,20 +97,10 @@ export function auc24FromDose(dose: number, tau: number, pk: PKParams): number {
   return (dose * dosesPerDay) / pk.cl;
 }
 
-// ---------- dose recommendation ----------
-
-export interface RecommendOpts {
-  target: TargetRange;
-  frequency?: number;       // hours; if omitted we pick based on t1/2
-  infusionTime?: number;    // hours; default 1.5h (or 2h if dose ≥ 1500mg per max rate)
-  roundTo?: number;         // mg; default 250
-  loadingDoseCapMg?: number; // default 3000
-}
-
-const DEFAULT_TARGET: TargetRange = { aucMin: 400, aucMax: 600, mic: 1 };
+// ---------- dose construction ----------
 
 export function pickFrequency(pk: PKParams): number {
-  // Heuristic by t1/2: shorter half-life → more frequent
+  // Heuristic by t1/2: shorter half-life → more frequent dosing
   if (pk.halfLife < 6) return 8;
   if (pk.halfLife < 10) return 12;
   if (pk.halfLife < 18) return 24;
@@ -111,15 +109,45 @@ export function pickFrequency(pk: PKParams): number {
 }
 
 export function infusionTimeFor(dose: number): number {
-  // Max infusion rate 1000 mg/hr per ASHP
+  // Max infusion rate 1000 mg/hr per ASHP; baseline 1.5 h, round up to nearest 0.5 h
   const minHours = Math.max(1, dose / 1000);
-  // Round up to nearest 0.5 hr, baseline 1.5
   return Math.max(1.5, Math.ceil(minHours * 2) / 2);
 }
 
 export function roundDose(mg: number, step = 250): number {
   return Math.round(mg / step) * step;
 }
+
+/**
+ * Internal helper: round, cap at MAX_DOSE_MG, and record whether the ceiling was hit.
+ */
+function buildRegimen(
+  uncappedDose: number,
+  tau: number,
+  step = 250,
+  overrideInfTime?: number
+): DoseRegimen {
+  const rounded = roundDose(uncappedDose, step);
+  const dose = Math.min(rounded, MAX_DOSE_MG);
+  const infusionTime = overrideInfTime ?? infusionTimeFor(dose);
+  return {
+    dose,
+    frequency: tau,
+    infusionTime,
+    doseCapped: rounded > MAX_DOSE_MG,
+  };
+}
+
+// ---------- dose recommendation ----------
+
+export interface RecommendOpts {
+  target: TargetRange;
+  frequency?: number;        // hours; if omitted we pick based on t1/2
+  infusionTime?: number;     // hours; default derived from dose
+  roundTo?: number;          // mg; default 250
+}
+
+const DEFAULT_TARGET: TargetRange = { aucMin: 400, aucMax: 600, mic: 1 };
 
 export function recommendRegimen(
   pk: PKParams,
@@ -131,12 +159,9 @@ export function recommendRegimen(
   const aucMid = (target.aucMin + target.aucMax) / 2;
   const dailyDose = aucMid * pk.cl;             // mg/day to hit mid-AUC
   const perDose = dailyDose / (24 / tau);
-  // mg/kg sanity cap: 15-20 mg/kg per dose typical; 35 mg/kg max for loading
-  const capped = Math.min(perDose, 35 * weightKg);
-  const dose = roundDose(capped, opts.roundTo ?? 250);
-  const tInf = opts.infusionTime ?? infusionTimeFor(dose);
-
-  const regimen: DoseRegimen = { dose, frequency: tau, infusionTime: tInf };
+  // 35 mg/kg per-dose weight-based cap before rounding
+  const weightCapped = Math.min(perDose, 35 * weightKg);
+  const regimen = buildRegimen(weightCapped, tau, opts.roundTo ?? 250, opts.infusionTime);
   return { regimen, result: evaluateRegimen(regimen, pk, target.mic) };
 }
 
@@ -174,29 +199,32 @@ export function compareFrequencies(
     const aucMid = (target.aucMin + target.aucMax) / 2;
     const dailyDose = aucMid * pk.cl;
     const perDose = dailyDose / (24 / tau);
-    const dose = roundDose(Math.min(perDose, 35 * weightKg), 250);
-    const tInf = infusionTimeFor(dose);
-    return evaluateRegimen({ dose, frequency: tau, infusionTime: tInf }, pk, target.mic);
+    const weightCapped = Math.min(perDose, 35 * weightKg);
+    const regimen = buildRegimen(weightCapped, tau);
+    return evaluateRegimen(regimen, pk, target.mic);
   });
 }
 
 // ---------- time-concentration simulation (multi-dose, superposition) ----------
 
-/** Concentration contribution from a single dose at time `t` after that dose start. */
-function singleDoseConcentration(dose: number, tInf: number, t: number, pk: PKParams): number {
+function singleDoseConcentration(
+  dose: number,
+  tInf: number,
+  t: number,
+  pk: PKParams
+): number {
   if (t <= 0) return 0;
   const k0 = dose / tInf; // mg/hr
   const factor = k0 / (pk.vd * pk.ke);
   if (t < tInf) {
-    // during infusion
+    // During infusion
     return factor * (1 - Math.exp(-pk.ke * t));
   }
-  // post-infusion: decay from end-of-infusion concentration
+  // Post-infusion: decay from end-of-infusion concentration
   const cEnd = factor * (1 - Math.exp(-pk.ke * tInf));
   return cEnd * Math.exp(-pk.ke * (t - tInf));
 }
 
-/** Simulate concentration vs time over N doses. */
 export function simulateConcentration(
   reg: DoseRegimen,
   pk: PKParams,

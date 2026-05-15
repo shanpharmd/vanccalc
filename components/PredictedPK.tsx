@@ -7,20 +7,18 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceArea,
   Area,
   AreaChart,
 } from "recharts";
 import { simulateConcentration } from "@/lib/vancoMath";
-import type { PKParams, RegimenResult, TargetRange } from "@/lib/types";
+import type { PKParams, RegimenResult } from "@/lib/types";
 
 interface Props {
   pk: PKParams | null;
   result: RegimenResult | null;
-  target: TargetRange;
 }
 
-export function PredictedPK({ pk, result, target }: Props) {
+export function PredictedPK({ pk, result }: Props) {
   const data = useMemo(() => {
     if (!pk || !result) return [];
     return simulateConcentration(result.regimen, pk, 96, 0.25);
@@ -32,7 +30,8 @@ export function PredictedPK({ pk, result, target }: Props) {
         <h3 className="card-title">Predicted Concentration–Time Curve</h3>
         {result && (
           <div className="text-xs text-ink-500 dark:text-ink-400">
-            {result.regimen.dose} mg q{result.regimen.frequency}h · {result.regimen.infusionTime}h infusion
+            {result.regimen.dose} mg q{result.regimen.frequency}h ·{" "}
+            {result.regimen.infusionTime}h infusion · 96h simulation
           </div>
         )}
       </div>
@@ -51,19 +50,36 @@ export function PredictedPK({ pk, result, target }: Props) {
                   <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
               <XAxis
                 dataKey="t"
                 type="number"
                 domain={[0, 96]}
                 ticks={[0, 12, 24, 36, 48, 60, 72, 84, 96]}
-                label={{ value: "Time (h)", position: "insideBottom", offset: -4, fill: "var(--muted)", fontSize: 11 }}
+                label={{
+                  value: "Time (h)",
+                  position: "insideBottom",
+                  offset: -4,
+                  fill: "var(--muted)",
+                  fontSize: 11,
+                }}
                 stroke="var(--muted)"
               />
               <YAxis
                 stroke="var(--muted)"
                 width={40}
-                label={{ value: "Conc (mcg/mL)", angle: -90, position: "insideLeft", offset: 18, fill: "var(--muted)", fontSize: 11 }}
+                label={{
+                  value: "Conc (mcg/mL)",
+                  angle: -90,
+                  position: "insideLeft",
+                  offset: 18,
+                  fill: "var(--muted)",
+                  fontSize: 11,
+                }}
               />
               <Tooltip
                 contentStyle={{
@@ -75,8 +91,6 @@ export function PredictedPK({ pk, result, target }: Props) {
                 formatter={(v: number) => [`${v.toFixed(1)} mcg/mL`, "Concentration"]}
                 labelFormatter={(t: number) => `t = ${t} h`}
               />
-              {/* therapeutic trough band, rough guide */}
-              <ReferenceArea y1={10} y2={20} fill="#10b981" fillOpacity={0.06} />
               <Area
                 type="monotone"
                 dataKey="c"
@@ -89,6 +103,11 @@ export function PredictedPK({ pk, result, target }: Props) {
           </ResponsiveContainer>
         )}
       </div>
+
+      <p className="text-[11px] text-ink-400 dark:text-ink-500 mt-2">
+        ASHP/IDSA 2020 targets AUC₂₄/MIC rather than trough concentration. Trough values are
+        shown in the dose card for reference only and are not the primary monitoring parameter.
+      </p>
     </div>
   );
 }

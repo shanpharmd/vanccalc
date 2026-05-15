@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { AlertTriangle } from "lucide-react";
 import { fmt } from "@/lib/vancoMath";
 import type { RegimenResult, TargetRange } from "@/lib/types";
 
@@ -12,14 +13,14 @@ interface Props {
 }
 
 export function CompareDosing({ options, target, onSelect, selectedFrequency }: Props) {
-  const data = options;
-
   return (
     <div className="card p-5 lg:col-span-7">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h3 className="card-title">Compare Dosing Options</h3>
         <div className="text-xs flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200 font-semibold uppercase tracking-wider">Target</span>
+          <span className="px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200 font-semibold uppercase tracking-wider">
+            Target
+          </span>
           <span className="text-ink-600 dark:text-ink-300 font-medium">
             AUC₂₄ {target.aucMin}–{target.aucMax} · MIC {target.mic.toFixed(1)}
           </span>
@@ -39,13 +40,16 @@ export function CompareDosing({ options, target, onSelect, selectedFrequency }: 
             </tr>
           </thead>
           <tbody>
-            {data.length === 0 && (
+            {options.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center text-ink-400 py-6">—</td>
+                <td colSpan={6} className="text-center text-ink-400 py-6">
+                  —
+                </td>
               </tr>
             )}
-            {data.map((r) => {
-              const inRange = r.auc24 >= target.aucMin && r.auc24 <= target.aucMax;
+            {options.map((r) => {
+              const inRange =
+                r.auc24 >= target.aucMin && r.auc24 <= target.aucMax;
               const isSelected = r.regimen.frequency === selectedFrequency;
               return (
                 <tr
@@ -55,13 +59,36 @@ export function CompareDosing({ options, target, onSelect, selectedFrequency }: 
                     isSelected && "bg-brand-50/50 dark:bg-brand-900/10"
                   )}
                 >
-                  <td className="py-2.5 pr-3 font-semibold">q{r.regimen.frequency}h</td>
-                  <td className="py-2.5 px-3 text-right tabular-nums">{fmt.mg(r.regimen.dose)}</td>
-                  <td className={clsx("py-2.5 px-3 text-right tabular-nums font-medium", inRange ? "text-accent-600 dark:text-accent-400" : "text-amber-600 dark:text-amber-400")}>
+                  <td className="py-2.5 pr-3 font-semibold">
+                    q{r.regimen.frequency}h
+                  </td>
+                  <td className="py-2.5 px-3 text-right tabular-nums">
+                    <span className="inline-flex items-center gap-1 justify-end">
+                      {fmt.mg(r.regimen.dose)}
+                      {r.regimen.doseCapped && (
+                        <AlertTriangle
+                          className="w-3 h-3 text-amber-500 shrink-0"
+                          title="Dose capped at 3,500 mg absolute maximum"
+                        />
+                      )}
+                    </span>
+                  </td>
+                  <td
+                    className={clsx(
+                      "py-2.5 px-3 text-right tabular-nums font-medium",
+                      inRange
+                        ? "text-accent-600 dark:text-accent-400"
+                        : "text-amber-600 dark:text-amber-400"
+                    )}
+                  >
                     {fmt.auc(r.auc24)}
                   </td>
-                  <td className="py-2.5 px-3 text-right tabular-nums">{fmt.conc(r.peak)}</td>
-                  <td className="py-2.5 px-3 text-right tabular-nums">{fmt.conc(r.trough)}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums">
+                    {fmt.conc(r.peak)}
+                  </td>
+                  <td className="py-2.5 px-3 text-right tabular-nums">
+                    {fmt.conc(r.trough)}
+                  </td>
                   <td className="py-2.5 pl-3 text-right">
                     <button
                       onClick={() => onSelect(r)}
@@ -83,7 +110,9 @@ export function CompareDosing({ options, target, onSelect, selectedFrequency }: 
       </div>
 
       <p className="text-[11px] text-ink-400 dark:text-ink-500 mt-3">
-        Infusion times capped at 1000 mg/hr max rate. Doses rounded to 250 mg.
+        Doses rounded to 250 mg · Max infusion rate 1,000 mg/hr ·{" "}
+        <AlertTriangle className="inline w-2.5 h-2.5 text-amber-500" /> = 3,500 mg
+        absolute ceiling applied
       </p>
     </div>
   );

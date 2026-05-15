@@ -1,25 +1,35 @@
 "use client";
 
-import { CheckCircle2, Circle, Info, Beaker, FlaskConical, User, Trash2 } from "lucide-react";
-import clsx from "clsx";
+import { CheckCircle2, Circle, Sliders, Trash2, User } from "lucide-react";
 import { Toggle } from "./Toggle";
-import type { PatientInput } from "@/lib/types";
+import type { PatientInput, TargetRange } from "@/lib/types";
 import Image from "next/image";
 
 interface SidebarProps {
   patient: Partial<PatientInput>;
   setPatient: (p: Partial<PatientInput>) => void;
+  target: TargetRange;
+  setTarget: (t: TargetRange) => void;
   complete: boolean;
   onClear: () => void;
   onLoadExample: () => void;
 }
 
-export function Sidebar({ patient, setPatient, complete, onClear, onLoadExample }: SidebarProps) {
-  const update = <K extends keyof PatientInput>(k: K, v: PatientInput[K]) =>
+export function Sidebar({
+  patient,
+  setPatient,
+  target,
+  setTarget,
+  complete,
+  onClear,
+  onLoadExample,
+}: SidebarProps) {
+  // Typed update — avoids `as any` by using `unknown` with a controlled call surface
+  const update = (k: keyof PatientInput, v: unknown) =>
     setPatient({ ...patient, [k]: v });
 
   const numField = (
-    field: keyof PatientInput,
+    field: keyof PatientInput & ("age" | "weight" | "height" | "creatinine"),
     placeholder = ""
   ) => (
     <input
@@ -27,13 +37,15 @@ export function Sidebar({ patient, setPatient, complete, onClear, onLoadExample 
       inputMode="decimal"
       value={(patient[field] as number | undefined) ?? ""}
       placeholder={placeholder}
-      onChange={(e) => update(field, (e.target.value === "" ? undefined : Number(e.target.value)) as any)}
+      onChange={(e) =>
+        update(field, e.target.value === "" ? undefined : Number(e.target.value))
+      }
       className="field-input"
     />
   );
 
   return (
-    <aside className="w-full lg:w-80 lg:min-h-screen bg-gradient-to-b from-ink-900 to-ink-950 text-ink-100 p-6 lg:sticky lg:top-0">
+    <aside className="w-full lg:w-80 lg:min-h-screen bg-gradient-to-b from-ink-900 to-ink-950 text-ink-100 p-6 lg:sticky lg:top-0 lg:overflow-y-auto lg:max-h-screen">
       {/* Brand */}
       <div className="mb-6">
         <div className="mb-3">
@@ -46,19 +58,24 @@ export function Sidebar({ patient, setPatient, complete, onClear, onLoadExample 
             priority
           />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">VancoCalc <span className="text-brand-400">Pro</span></h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          VancoCalc <span className="text-brand-400">Pro</span>
+        </h1>
         <p className="text-xs text-ink-400 mt-1">
           Vancomycin AUC Dosing · ASHP/IDSA 2020
         </p>
       </div>
 
-      {/* Step indicator */}
+      {/* Patient status indicator */}
       <div className="flex items-center gap-2 mb-6 text-xs">
-        <Step active label="Patient" done={complete} />
-        <div className="flex-1 h-px bg-ink-700" />
-        <Step active={false} label="History" done={false} />
-        <div className="flex-1 h-px bg-ink-700" />
-        <Step active={false} label="Levels" done={false} />
+        {complete ? (
+          <CheckCircle2 className="w-4 h-4 text-accent-400" />
+        ) : (
+          <Circle className="w-4 h-4 text-brand-400" />
+        )}
+        <span className="uppercase tracking-wider text-ink-200">
+          Patient Data{complete ? " Complete" : " — Fill All Fields"}
+        </span>
       </div>
 
       {/* Patient Information */}
@@ -139,41 +156,79 @@ export function Sidebar({ patient, setPatient, complete, onClear, onLoadExample 
             />
             <span className="text-xs text-ink-300 leading-snug">
               Confirm patient is <strong>not</strong> on renal replacement therapy
+              (CRRT, HD, PD)
             </span>
           </label>
         </div>
       </Section>
 
-      <Section icon={<Beaker className="w-4 h-4" />} title="Dose History">
-        <p className="text-xs text-ink-400">Coming soon — input prior doses to refine the estimate.</p>
-      </Section>
-
-      <Section icon={<Info className="w-4 h-4" />} title="Drug Levels">
-        <p className="text-xs text-ink-400">Coming soon — Bayesian update from measured levels.</p>
+      {/* Dosing Target */}
+      <Section icon={<Sliders className="w-4 h-4" />} title="Dosing Target">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="AUC₂₄ min">
+              <input
+                type="number"
+                inputMode="decimal"
+                value={target.aucMin}
+                onChange={(e) =>
+                  setTarget({ ...target, aucMin: Number(e.target.value) || 400 })
+                }
+                className="field-input"
+              />
+            </Field>
+            <Field label="AUC₂₄ max">
+              <input
+                type="number"
+                inputMode="decimal"
+                value={target.aucMax}
+                onChange={(e) =>
+                  setTarget({ ...target, aucMax: Number(e.target.value) || 600 })
+                }
+                className="field-input"
+              />
+            </Field>
+          </div>
+          <Field label="MIC (mcg/mL)">
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.5"
+              value={target.mic}
+              onChange={(e) =>
+                setTarget({ ...target, mic: Number(e.target.value) || 1 })
+              }
+              className="field-input"
+            />
+          </Field>
+          <p className="text-[11px] text-ink-500 leading-snug">
+            Default: AUC₂₄ 400–600 · MIC 1.0 (ASHP/IDSA 2020). Adjust only if
+            your institution protocol or susceptibility data differs.
+          </p>
+          <button
+            onClick={() => setTarget({ aucMin: 400, aucMax: 600, mic: 1 })}
+            className="text-[11px] text-brand-400 hover:text-brand-300 transition"
+          >
+            Reset to defaults
+          </button>
+        </div>
       </Section>
 
       <div className="mt-6 space-y-2">
-        <button onClick={onLoadExample} className="btn-ghost w-full justify-center bg-ink-800/60 hover:bg-ink-800">
+        <button
+          onClick={onLoadExample}
+          className="btn-ghost w-full justify-center bg-ink-800/60 hover:bg-ink-800"
+        >
           Load example patient
         </button>
-        <button onClick={onClear} className="btn-ghost w-full justify-center text-rose-400 hover:bg-rose-500/10">
+        <button
+          onClick={onClear}
+          className="btn-ghost w-full justify-center text-rose-400 hover:bg-rose-500/10"
+        >
           <Trash2 className="w-3.5 h-3.5" /> Clear all
         </button>
       </div>
     </aside>
-  );
-}
-
-function Step({ active, done, label }: { active: boolean; done: boolean; label: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      {done ? (
-        <CheckCircle2 className="w-4 h-4 text-accent-400" />
-      ) : (
-        <Circle className={clsx("w-4 h-4", active ? "text-brand-400" : "text-ink-600")} />
-      )}
-      <span className={clsx("uppercase tracking-wider", active ? "text-ink-100" : "text-ink-500")}>{label}</span>
-    </div>
   );
 }
 
@@ -189,7 +244,10 @@ function Section({
   defaultOpen?: boolean;
 }) {
   return (
-    <details className="group mb-3 rounded-xl border border-ink-800 bg-ink-900/50 open:bg-ink-900/70" open={defaultOpen}>
+    <details
+      className="group mb-3 rounded-xl border border-ink-800 bg-ink-900/50 open:bg-ink-900/70"
+      open={defaultOpen}
+    >
       <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-ink-100">
           {icon}
