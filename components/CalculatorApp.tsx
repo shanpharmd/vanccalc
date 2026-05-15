@@ -10,6 +10,7 @@ import { PredictedPK } from "./PredictedPK";
 import { KineticParams } from "./KineticParams";
 import { MethodologyCard } from "./MethodologyCard";
 import { SingleLevelAnalysis } from "./SingleLevelAnalysis";
+import { TwoLevelAnalysis } from "./TwoLevelAnalysis";
 import { isPatientComplete, normalizePatient, validatePatient } from "@/lib/units";
 import {
   pkParams,
@@ -19,7 +20,7 @@ import {
 } from "@/lib/vancoMath";
 import type { PatientInput, RegimenResult, TargetRange } from "@/lib/types";
 
-type Tab = "empiric" | "single-level";
+type Tab = "empiric" | "single-level" | "two-level";
 
 const DEFAULT_TARGET: TargetRange = { aucMin: 400, aucMax: 600, mic: 1 };
 
@@ -138,6 +139,12 @@ export default function CalculatorApp() {
             >
               Single-Level Adjustment
             </TabBtn>
+            <TabBtn
+              active={activeTab === "two-level"}
+              onClick={() => setActiveTab("two-level")}
+            >
+              Two-Level Adjustment
+            </TabBtn>
           </div>
 
           <button
@@ -217,6 +224,23 @@ export default function CalculatorApp() {
               </div>
             ) : (
               <SingleLevelAnalysis
+                normalized={normalized!}
+                populationPk={pk!}
+                target={target}
+              />
+            )}
+          </>
+        )}
+
+        {/* ── Two-Level Adjustment tab ── */}
+        {activeTab === "two-level" && (
+          <>
+            {!complete || hasErrors ? (
+              <div className="card p-8 text-center text-sm text-ink-500 dark:text-ink-400">
+                Complete patient demographics in the sidebar to use two-level analysis.
+              </div>
+            ) : (
+              <TwoLevelAnalysis
                 normalized={normalized!}
                 populationPk={pk!}
                 target={target}

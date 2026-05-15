@@ -13,6 +13,8 @@ import type {
   SimulationPoint,
   SingleLevelInput,
   SingleLevelResult,
+  TwoLevelInput,
+  TwoLevelResult,
 } from "./types";
 
 // Absolute per-dose ceiling (mg). Clinical doses above this warrant extra verification
@@ -397,6 +399,123 @@ export function simulateConcentration(
     points.push({ t: Number(t.toFixed(2)), c: Number(c.toFixed(2)) });
   }
   return points;
+}
+
+// ---------- Two-level PK analysis ----------
+
+/**
+ * Two-level back-calculation.
+ *
+ * Both levels must be drawn in the post-infusion (elimination) phase of the same dose.
+ * Level 1 = earlier (higher); Level 2 = later (lower).
+ * Timing is from the START of the infusion.
+ *
+ * Algorithm:
+ *   1. ke = ln(C1/C2) / (t2 − t1)
+ *   2. Vd_oneDose  = D·(1−e^{−ke·tInf})·e^{−ke·(t1−tInf)} / (tInf·ke·C1)
+ *   3. Vd_ss       = Vd_oneDose / (1 − e^{−ke·tau})   [SS denominator]
+ *   4. Use Vd_oneDose when afterOneDoseOnly; use Vd_ss otherwise.
+ *   5. CrCl estimate via inverse Matzke: (ke − 0.0044) / 0.00083
+ *   6. hoursUntil15: ln(C2/15)/ke when C2 > 15
+ *
+ * References: Matzke GR et al. DICP 1984; Murphy JE. Clinical Pharmacokinetics, 6th ed.
+ */
+export function twoLevelAnalysis(
+  input: TwoLevelInput,
+  normalized: NormalizedPatient,
+  target: TargetRange = DEFAULT_TARGET
+): TwoLevelResult {
+  const popPk = pkParams(normalized);
+
+  const {
+    currentDose: D,
+    currentTau: tau,
+    currentInfusionTime: tInf,
+    afterOneDoseOnly,
+    level1Conc: C1,
+    level1TimeFromDose: t1,
+    level2Conc: C2,
+    level2TimeFromDose: t2,
+  } = input;
+
+  // Patient-specific ke — floor prevents divide-by-zero or negative ke
+  const ke = Math.max(Math.log(C1 / C2) / (t2 - t1), 0.001);
+  const halfLife = 0.693 / ke;
+
+  // Numerator shared by both Vd equations (post-infusion back-extrapolation to end of infusion)
+  const postInfFactor =
+    D * (1 - Math.exp(-ke * tInf)) * Math.exp(-ke * (t1 - tInf));
+
+  const denomCommon = tInf * ke * C1;
+
+  // Vd from single-dose kinetics (levels after first dose or assuming no accumulation)
+  const vdOneDose = Math.max(postInfFactor / denomCommon, 0.1);
+
+  // Vd at steady state — divides by (1 − e^{−ke·tau}) to account for accumulation
+  const ssAccum = 1 - Math.exp(-ke * tau);
+  const vdSteadyState = Math.max(postInfFactor / (denomCommon * ssAccum), 0.1);
+
+  // Select Vd for all downstream calculations
+  const vd = afterOneDoseOnly ? vdOneDose : vdSteadyState;
+  const vdPerKg = vd / normalized.weightKg;
+  const cl = ke * vd;
+
+  // Estimated CrCl from inverse Matzke equation
+  const estimatedCrCl = Math.max((ke - 0.0044) / 0.00083, 5);
+
+  const patientPk: PKParams = {
+    crCl: estimatedCrCl,
+    crClMethod: "cockcroft-gault",
+    amputationCorrectionPct: popPk.amputationCorrectionPct,
+    vd,
+    vdPerKg,
+    ke,
+    halfLife,
+    cl,
+    ibw: popPk.ibw,
+    adjBw: popPk.adjBw,
+    bmi: popPk.bmi,
+  };
+
+  // Steady-state concentrations on CURRENT regimen using patient-specific PK
+  const cmax = ssPeak(D, tInf, tau, patientPk);
+  const cmin = ssTrough(cmax, tInf, tau, patientPk);
+  const auc24Current = auc24FromDose(D, tau, patientPk);
+
+  const currentRegimen: DoseRegimen = {
+    dose: D,
+    frequency: tau,
+    infusionTime: tInf,
+    doseCapped: false,
+  };
+
+  // New regimen targeting AUC goal
+  const { regimen: recommendedRegimen, result: recommendedResult } = recommendRegimen(
+    patientPk,
+    normalized.weightKg,
+    { target }
+  );
+
+  // Time from level-2 draw until concentration reaches 15 mcg/mL (supratherapeutic guidance)
+  const hoursUntil15 = C2 > 15 ? Math.log(C2 / 15) / ke : null;
+
+  return {
+    ke,
+    halfLife,
+    vdOneDose,
+    vdSteadyState,
+    cl,
+    estimatedCrCl,
+    cmax,
+    cmin,
+    auc24Current,
+    currentRegimen,
+    patientPk,
+    populationPk: popPk,
+    recommendedRegimen,
+    recommendedResult,
+    hoursUntil15,
+  };
 }
 
 // ---------- formatting helpers ----------
