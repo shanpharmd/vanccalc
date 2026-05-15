@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "VancoCalc Pro — Vancomycin AUC Dosing Calculator",
   description:
     "Clinical vancomycin dosing calculator using population pharmacokinetics. AUC24-guided dosing per ASHP/IDSA 2020 consensus.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

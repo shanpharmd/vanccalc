@@ -236,7 +236,7 @@ export default function CalculatorApp() {
           or treatment.
           <div className="mt-2 flex items-center justify-center gap-2 opacity-70">
             <Image
-              src="/theraintel-logo.png"
+              src="/logo2.png"
               alt="TheraIntel"
               width={80}
               height={18}
