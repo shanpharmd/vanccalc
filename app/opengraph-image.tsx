@@ -1,17 +1,11 @@
 import { ImageResponse } from "next/og";
-import { readFileSync } from "fs";
-import path from "path";
 
+export const runtime = "edge";
 export const alt = "VancoCalc Pro — Vancomycin AUC Dosing Calculator";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default function OgImage() {
-  // Load logo at render time (Node.js runtime — works in Vercel serverless)
-  const logoPath = path.join(process.cwd(), "public", "vancocalcpro.png");
-  const logoData = readFileSync(logoPath);
-  const logoBase64 = `data:image/png;base64,${logoData.toString("base64")}`;
-
   return new ImageResponse(
     (
       <div
@@ -82,14 +76,19 @@ export default function OgImage() {
               ))}
             </div>
 
-            {/* Main title — logo image */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={logoBase64}
-                alt="VancoCalc Pro"
-                style={{ height: "72px", objectFit: "contain", objectPosition: "left" }}
-              />
+            {/* Main title */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div
+                style={{
+                  fontSize: "72px",
+                  fontWeight: 800,
+                  color: "#f8fafc",
+                  letterSpacing: "-0.03em",
+                  lineHeight: 1.05,
+                }}
+              >
+                VancoCalc Pro
+              </div>
               <div
                 style={{
                   fontSize: "28px",

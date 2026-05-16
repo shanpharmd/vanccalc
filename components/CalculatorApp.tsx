@@ -256,22 +256,15 @@ export default function CalculatorApp() {
           This tool is for informational purposes only and intended for healthcare professionals.
           It is <strong>not</strong> a substitute for professional medical advice, dosing, diagnosis,
           or treatment.
-          <div className="mt-2 flex items-center justify-center gap-3 opacity-60">
+          <div className="mt-2 flex items-center justify-center gap-2 opacity-70">
             <Image
-              src="/vancocalcpro.png"
-              alt="VancoCalc Pro"
-              width={110}
-              height={26}
-              className="object-contain"
-            />
-            <span className="text-ink-400 dark:text-ink-600">·</span>
-            <Image
-              src="/theraintel-logo.png"
+              src="/logo2.png"
               alt="TheraIntel"
               width={80}
               height={18}
               className="object-contain"
             />
+            <span>· VancoCalc Pro v0.1</span>
           </div>
         </footer>
       </main>

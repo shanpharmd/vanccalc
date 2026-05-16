@@ -59,26 +59,20 @@ export function Sidebar({
       <div className="mb-6">
         <div className="mb-3">
           <Image
-            src="/vancocalcpro.png"
-            alt="VancoCalc Pro"
-            width={200}
-            height={48}
-            className="object-contain object-left"
+            src="/theraintel-logo.png"
+            alt="TheraIntel"
+            width={160}
+            height={36}
+            className="object-contain"
             priority
           />
         </div>
+        <h1 className="text-2xl font-bold tracking-tight">
+          VancoCalc <span className="text-brand-400">Pro</span>
+        </h1>
         <p className="text-xs text-ink-400 mt-1">
           Vancomycin AUC Dosing · ASHP/IDSA 2020
         </p>
-        <div className="mt-3">
-          <Image
-            src="/theraintel-logo.png"
-            alt="TheraIntel"
-            width={100}
-            height={22}
-            className="object-contain object-left opacity-60"
-          />
-        </div>
       </div>
 
       {/* Patient status indicator */}
