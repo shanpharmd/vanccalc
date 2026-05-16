@@ -92,6 +92,43 @@ export interface ValidationResult {
   warnings: string[];        // clinically notable — results shown but flagged
 }
 
+// ---------- Two-level analysis types ----------
+
+/**
+ * Two serum levels drawn at known times after a dose.
+ * Both levels must be post-infusion (in the elimination phase).
+ * Level 1 = earlier (higher concentration); Level 2 = later (lower concentration).
+ * Timing is measured from the START of the infusion for the same dose.
+ */
+export interface TwoLevelInput {
+  currentDose: number;           // mg — dose patient is currently receiving
+  currentTau: number;            // hrs — current dosing interval
+  currentInfusionTime: number;   // hrs
+  afterOneDoseOnly: boolean;     // true = levels drawn after the very first dose
+  level1Conc: number;            // mcg/mL — earlier (higher) level
+  level1TimeFromDose: number;    // hrs from START of infusion when level 1 was drawn
+  level2Conc: number;            // mcg/mL — later (lower) level
+  level2TimeFromDose: number;    // hrs from START of infusion when level 2 was drawn
+}
+
+export interface TwoLevelResult {
+  ke: number;                    // /hr — patient-specific, back-calculated
+  halfLife: number;              // hr
+  vdOneDose: number;             // L — Vd extrapolated from single-dose kinetics
+  vdSteadyState: number;         // L — Vd calculated from steady-state equation
+  cl: number;                    // L/hr — using selected Vd
+  estimatedCrCl: number;         // mL/min — back-calculated from Matzke inverse
+  cmax: number;                  // mcg/mL — SS Cmax on current regimen
+  cmin: number;                  // mcg/mL — SS Cmin on current regimen
+  auc24Current: number;          // mg·h/L — AUC24 on current regimen
+  currentRegimen: DoseRegimen;   // for simulation chart
+  patientPk: PKParams;
+  populationPk: PKParams;
+  recommendedRegimen: DoseRegimen;
+  recommendedResult: RegimenResult;
+  hoursUntil15: number | null;   // hrs from level 2 draw until conc reaches 15 mcg/mL
+}
+
 // ---------- Single-level analysis types ----------
 
 export interface SingleLevelInput {
