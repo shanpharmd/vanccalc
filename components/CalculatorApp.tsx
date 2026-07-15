@@ -11,6 +11,8 @@ import { KineticParams } from "./KineticParams";
 import { MethodologyCard } from "./MethodologyCard";
 import { SingleLevelAnalysis } from "./SingleLevelAnalysis";
 import { TwoLevelAnalysis } from "./TwoLevelAnalysis";
+import { CrClCalculator } from "./CrClCalculator";
+import { AntibioticDosing } from "./AntibioticDosing";
 import { isPatientComplete, normalizePatient, validatePatient } from "@/lib/units";
 import {
   pkParams,
@@ -20,7 +22,7 @@ import {
 } from "@/lib/vancoMath";
 import type { PatientInput, RegimenResult, TargetRange } from "@/lib/types";
 
-type Tab = "empiric" | "single-level" | "two-level";
+type Tab = "empiric" | "single-level" | "two-level" | "crcl" | "antibiotics";
 
 const DEFAULT_TARGET: TargetRange = { aucMin: 400, aucMax: 600, mic: 1 };
 
@@ -145,6 +147,15 @@ export default function CalculatorApp() {
             >
               Two-Level Adjustment
             </TabBtn>
+            <TabBtn active={activeTab === "crcl"} onClick={() => setActiveTab("crcl")}>
+              CrCl Calculator
+            </TabBtn>
+            <TabBtn
+              active={activeTab === "antibiotics"}
+              onClick={() => setActiveTab("antibiotics")}
+            >
+              Antibiotic Dosing
+            </TabBtn>
           </div>
 
           <button
@@ -157,7 +168,7 @@ export default function CalculatorApp() {
         </div>
 
         {/* Hard errors — block output */}
-        {validation && validation.errors.length > 0 && (
+        {activeTab !== "crcl" && activeTab !== "antibiotics" && validation && validation.errors.length > 0 && (
           <div className="mb-5 rounded-xl border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40 p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
@@ -176,7 +187,7 @@ export default function CalculatorApp() {
         )}
 
         {/* Clinical warnings — results still shown */}
-        {validation && validation.warnings.length > 0 && !hasErrors && (
+        {activeTab !== "crcl" && activeTab !== "antibiotics" && validation && validation.warnings.length > 0 && !hasErrors && (
           <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -247,6 +258,14 @@ export default function CalculatorApp() {
               />
             )}
           </>
+        )}
+
+        {/* ── Standalone CrCl Calculator tab ── */}
+        {activeTab === "crcl" && <CrClCalculator />}
+
+        {/* ── Antibiotic Dosing tab ── */}
+        {activeTab === "antibiotics" && (
+          <AntibioticDosing crCl={pk?.crCl ?? null} normalized={normalized} />
         )}
 
         <footer className="mt-8 pt-6 border-t border-ink-200 dark:border-ink-800 text-center text-[11px] text-ink-500 dark:text-ink-500 leading-relaxed">
