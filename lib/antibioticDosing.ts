@@ -223,16 +223,16 @@ function traditionalDose(
 }
 
 const AMIKACIN_GOALS: AminoglycosideGoal[] = [
-  { label: "Standard (peak 35 / trough 6)", peak: 35, trough: 6, vd: 0.25, tInf: 1 },
-  { label: "Pregnancy (peak 25 / trough 4)", peak: 25, trough: 4, vd: 0.35, tInf: 1 },
+  { label: "Standard", peak: 35, trough: 6, vd: 0.25, tInf: 1 },
+  { label: "Pregnancy", peak: 25, trough: 4, vd: 0.35, tInf: 1 },
 ];
 
 const TOBRAMYCIN_GOALS: AminoglycosideGoal[] = [
-  { label: "GNR endocarditis / meningitis / pseudomonal pneumonia (peak 10)", peak: 10, trough: 1, vd: 0.28, tInf: 1 },
-  { label: "Neutropenia / intra-abd / bacteremia / cellulitis / pneumonia (peak 8)", peak: 8, trough: 1, vd: 0.28, tInf: 1 },
-  { label: "UTI (peak 6)", peak: 6, trough: 1, vd: 0.28, tInf: 1 },
-  { label: "Synergy (peak 5)", peak: 5, trough: 1, vd: 0.28, tInf: 1 },
-  { label: "Pregnancy (peak 8)", peak: 8, trough: 1, vd: 0.35, tInf: 1 },
+  { label: "GNR endocarditis, meningitis, pseudomonal pneumonia", peak: 10, trough: 1, vd: 0.28, tInf: 1 },
+  { label: "Neutropenia, intra-abdominal, bacteremia, cellulitis, pneumonia", peak: 8, trough: 1, vd: 0.28, tInf: 1 },
+  { label: "UTI", peak: 6, trough: 1, vd: 0.28, tInf: 1 },
+  { label: "Synergy", peak: 5, trough: 1, vd: 0.28, tInf: 1 },
+  { label: "Pregnancy", peak: 8, trough: 1, vd: 0.35, tInf: 1 },
 ];
 
 export function amikacin(c: CrClValue, adjBw: number): AminoglycosideResult {
