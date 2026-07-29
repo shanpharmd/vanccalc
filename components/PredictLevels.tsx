@@ -1,17 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Area,
-  AreaChart,
-  ReferenceLine,
-} from "recharts";
 import { Sliders, AlertTriangle } from "lucide-react";
+import { VancoChart } from "./VancoChart";
 import {
   ssPeak,
   ssTrough,
@@ -224,56 +215,17 @@ export function PredictLevels({ pk, target, complete }: Props) {
                 {regimen!.dose} mg q{regimen!.frequency}h · {regimen!.infusionTime}h infusion
               </div>
             </div>
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={curve} margin={{ top: 8, right: 16, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="predFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="t"
-                    type="number"
-                    domain={[0, 96]}
-                    ticks={[0, 12, 24, 36, 48, 60, 72, 84, 96]}
-                    stroke="var(--muted)"
-                  />
-                  <YAxis stroke="var(--muted)" width={40} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                    formatter={(v: number) => [`${v.toFixed(1)} mcg/mL`, "Concentration"]}
-                    labelFormatter={(t: number) => `t = ${t} h`}
-                  />
-                  <ReferenceLine
-                    y={result.cmax}
-                    stroke="var(--muted)"
-                    strokeDasharray="4 4"
-                    label={{
-                      value: `peak ${fmt.conc(result.cmax)}`,
-                      fill: "var(--muted)",
-                      fontSize: 10,
-                      position: "insideTopRight",
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="c"
-                    stroke="#0891b2"
-                    strokeWidth={2}
-                    fill="url(#predFill)"
-                    isAnimationActive={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            <VancoChart
+              data={curve}
+              frequency={regimen!.frequency}
+              infusionTime={regimen!.infusionTime}
+              hoursTotal={96}
+              peak={result.cmax}
+              trough={result.cmin}
+            />
+            <p className="text-[11px] text-ink-400 dark:text-ink-500 mt-2">
+              Hover or drag across the curve to read the predicted concentration at any moment.
+            </p>
           </div>
 
           <p className="text-[11px] text-ink-400 dark:text-ink-500 leading-relaxed px-1">
