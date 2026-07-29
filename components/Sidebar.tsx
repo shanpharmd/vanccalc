@@ -54,7 +54,7 @@ export function Sidebar({
   );
 
   return (
-    <aside className="w-full lg:w-80 lg:min-h-screen bg-gradient-to-b from-ink-900 to-ink-950 text-ink-100 p-6 lg:sticky lg:top-0 lg:overflow-y-auto lg:max-h-screen">
+    <aside className="w-full lg:w-80 lg:min-h-screen bg-gradient-to-b from-brand-800 via-brand-900 to-brand-950 text-brand-50 p-6 lg:sticky lg:top-0 lg:overflow-y-auto lg:max-h-screen">
       {/* Brand */}
       <div className="mb-6">
         <div className="mb-3">
@@ -68,9 +68,9 @@ export function Sidebar({
           />
         </div>
         <h1 className="text-2xl font-bold tracking-tight">
-          VancoCalc <span className="text-brand-400">Pro</span>
+          VancoCalc <span className="text-accent-400">Pro</span>
         </h1>
-        <p className="text-xs text-ink-400 mt-1">
+        <p className="text-xs text-brand-200/70 mt-1">
           Vancomycin AUC Dosing · ASHP/IDSA 2020
         </p>
       </div>
@@ -80,9 +80,9 @@ export function Sidebar({
         {complete ? (
           <CheckCircle2 className="w-4 h-4 text-accent-400" />
         ) : (
-          <Circle className="w-4 h-4 text-brand-400" />
+          <Circle className="w-4 h-4 text-accent-400" />
         )}
-        <span className="uppercase tracking-wider text-ink-200">
+        <span className="uppercase tracking-wider text-brand-100">
           Patient Data{complete ? " Complete" : " — Fill All Fields"}
         </span>
       </div>
@@ -163,7 +163,7 @@ export function Sidebar({
               onChange={(e) => update("noRenalReplacement", e.target.checked)}
               className="mt-0.5 accent-brand-500"
             />
-            <span className="text-xs text-ink-300 leading-snug">
+            <span className="text-xs text-brand-200 leading-snug">
               Confirm patient is <strong>not</strong> on renal replacement therapy
               (CRRT, HD, PD)
             </span>
@@ -173,7 +173,7 @@ export function Sidebar({
             <select
               value={patient.amputationType ?? "none"}
               onChange={(e) => update("amputationType", e.target.value as AmputationType)}
-              className="field-input bg-ink-800 text-ink-100 text-xs"
+              className="field-input bg-brand-900 text-brand-50 text-xs"
             >
               {AMPUTATION_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -245,12 +245,12 @@ export function Sidebar({
               }
               className="field-input"
             />
-            <p className="text-[10px] text-ink-500 mt-1 leading-snug">
+            <p className="text-[10px] text-brand-300/80 mt-1 leading-snug">
               Typical range 0.45–0.90 L/kg. Leave blank for auto (0.70; 0.80 ICU).
               Override for burns, CHF, or patient-specific data.
             </p>
           </Field>
-          <p className="text-[11px] text-ink-500 leading-snug">
+          <p className="text-[11px] text-brand-300/80 leading-snug">
             Default: AUC₂₄ 400–600 · MIC 1.0 (ASHP/IDSA 2020). Adjust only if
             your institution protocol or susceptibility data differs.
           </p>
@@ -259,7 +259,7 @@ export function Sidebar({
               setTarget({ aucMin: 400, aucMax: 600, mic: 1 });
               update("empiricVdLPerKg", undefined);
             }}
-            className="text-[11px] text-brand-400 hover:text-brand-300 transition"
+            className="text-[11px] text-accent-300 hover:text-accent-200 transition"
           >
             Reset to defaults
           </button>
@@ -269,7 +269,7 @@ export function Sidebar({
       <div className="mt-6 space-y-2">
         <button
           onClick={onLoadExample}
-          className="btn-ghost w-full justify-center bg-ink-800/60 hover:bg-ink-800"
+          className="btn-ghost w-full justify-center bg-brand-800/60 hover:bg-brand-800 text-brand-100"
         >
           Load example patient
         </button>
@@ -297,15 +297,15 @@ function Section({
 }) {
   return (
     <details
-      className="group mb-3 rounded-xl border border-ink-800 bg-ink-900/50 open:bg-ink-900/70"
+      className="group mb-3 rounded-xl border border-brand-700/60 bg-brand-900/40 open:bg-brand-900/60"
       open={defaultOpen}
     >
       <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-100">
+        <div className="flex items-center gap-2 text-sm font-semibold text-brand-50">
           {icon}
           {title}
         </div>
-        <span className="text-ink-500 group-open:rotate-180 transition">▾</span>
+        <span className="text-brand-300/80 group-open:rotate-180 transition">▾</span>
       </summary>
       <div className="px-4 pb-4">{children}</div>
     </details>
@@ -315,7 +315,7 @@ function Section({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-ink-300 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-brand-200 mb-1">{label}</label>
       {children}
     </div>
   );

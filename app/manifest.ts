@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Clinical vancomycin dosing calculator using population pharmacokinetics. AUC24-guided dosing per ASHP/IDSA 2020 consensus.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f6f7f9",
-    theme_color: "#0891b2",
+    background_color: "#f7f7f5",
+    theme_color: "#16324f",
     icons: [
       {
         src: "/favicon.jpg",

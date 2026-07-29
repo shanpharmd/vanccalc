@@ -147,7 +147,7 @@ export function MethodologyCard({ pk, normalized }: Props) {
 
       <p className="text-xs text-ink-400 dark:text-ink-500 mt-3 mb-4">
         {hasData
-          ? "Patient values substituted — cyan = input, green = computed result."
+          ? "Patient values substituted — blue = input, green = computed result."
           : "Enter patient demographics to see values substituted into each formula."}
       </p>
 

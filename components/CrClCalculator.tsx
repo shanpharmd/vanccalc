@@ -313,11 +313,11 @@ export function CrClCalculator() {
 
       {/* ── Result banner ── */}
       <div className="lg:col-span-7 space-y-4">
-        <div className="rounded-2xl bg-gradient-to-br from-teal-700 via-emerald-700 to-emerald-800 text-white p-6 shadow-card">
+        <div className="rounded-2xl bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 text-white p-6 shadow-card">
           {!result ? (
             <div className="flex items-center justify-between">
               <span className="text-lg font-semibold">Result</span>
-              <span className="text-sm text-emerald-100/90">
+              <span className="text-sm text-brand-100/90">
                 Enter age, weight, and creatinine
               </span>
             </div>
@@ -330,9 +330,9 @@ export function CrClCalculator() {
                     <span className="text-4xl font-bold tracking-tight tabular-nums">
                       {r0(result.cgActual)}
                     </span>
-                    <span className="text-sm text-emerald-100">mL/min</span>
+                    <span className="text-sm text-brand-100">mL/min</span>
                   </div>
-                  <p className="text-[13px] text-emerald-50 mt-2 leading-snug">
+                  <p className="text-[13px] text-brand-100 mt-2 leading-snug">
                     Creatinine clearance, original Cockcroft-Gault
                   </p>
                 </div>
@@ -344,9 +344,9 @@ export function CrClCalculator() {
                       <span className="text-4xl font-bold tracking-tight tabular-nums">
                         {r0(result.modified!)}
                       </span>
-                      <span className="text-sm text-emerald-100">mL/min</span>
+                      <span className="text-sm text-brand-100">mL/min</span>
                     </div>
-                    <p className="text-[13px] text-emerald-50 mt-2 leading-snug">
+                    <p className="text-[13px] text-brand-100 mt-2 leading-snug">
                       Creatinine clearance modified for {result.category} patient, using{" "}
                       {result.modifiedWeightLabel} of {r0(result.modifiedWeightKg!)} kg (
                       {r0(kgToLb(result.modifiedWeightKg!))} lb).
@@ -354,7 +354,7 @@ export function CrClCalculator() {
                   </div>
                 ) : (
                   <div className="sm:col-span-2 flex items-center">
-                    <p className="text-[13px] text-emerald-50 leading-snug">
+                    <p className="text-[13px] text-brand-100 leading-snug">
                       Add height to get the ideal / adjusted body weight estimate and the
                       weight-adjusted range.
                     </p>
@@ -369,8 +369,8 @@ export function CrClCalculator() {
                         {r1(result.rangeLow!)}–{r1(result.rangeHigh!)}
                       </span>
                     </div>
-                    <span className="text-sm text-emerald-100">mL/min</span>
-                    <p className="text-[13px] text-emerald-50 mt-2 leading-snug">
+                    <span className="text-sm text-brand-100">mL/min</span>
+                    <p className="text-[13px] text-brand-100 mt-2 leading-snug">
                       {result.rangeNote}
                     </p>
                   </div>
@@ -466,7 +466,7 @@ function Stat({
       <div className="stat-label">{label}</div>
       <div
         className={`text-lg font-semibold tabular-nums ${
-          highlight ? "text-emerald-600 dark:text-emerald-400" : "text-ink-900 dark:text-ink-100"
+          highlight ? "text-accent-600 dark:text-accent-400" : "text-ink-900 dark:text-ink-100"
         }`}
       >
         {value}

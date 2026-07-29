@@ -219,13 +219,13 @@ export function VancoChart({
       >
         <defs>
           <linearGradient id="vcFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.38" />
-            <stop offset="55%" stopColor="#06b6d4" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.01" />
+            <stop offset="0%" stopColor="#2b5480" stopOpacity="0.38" />
+            <stop offset="55%" stopColor="#2b5480" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="#2b5480" stopOpacity="0.01" />
           </linearGradient>
           <linearGradient id="vcStroke" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#22d3ee" />
-            <stop offset="100%" stopColor="#0891b2" />
+            <stop offset="0%" stopColor="#3e6c9c" />
+            <stop offset="100%" stopColor="#1f4066" />
           </linearGradient>
           <filter id="vcGlow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="b" />
@@ -391,19 +391,19 @@ export function VancoChart({
               x2={x(marker)}
               y1={PAD.top}
               y2={PAD.top + PLOT_H}
-              stroke="#f59e0b"
+              stroke="#c0713f"
               strokeWidth="1.5"
             />
             <circle
               cx={x(marker)}
               cy={y(concAt(marker))}
               r="6"
-              fill="#f59e0b"
+              fill="#c0713f"
               stroke="var(--surface)"
               strokeWidth="2"
             />
             <g transform={`translate(${x(marker)}, ${PAD.top - 8})`}>
-              <rect x="-26" y="-14" width="52" height="17" rx="4" fill="#f59e0b" />
+              <rect x="-26" y="-14" width="52" height="17" rx="4" fill="#c0713f" />
               <text
                 x="0"
                 y="-1.5"
@@ -434,7 +434,7 @@ export function VancoChart({
               cx={x(hover.t)}
               cy={y(hover.c)}
               r="11"
-              fill="#22d3ee"
+              fill="#c0713f"
               opacity="0.18"
               className="vc-pulse"
             />
@@ -442,7 +442,7 @@ export function VancoChart({
               cx={x(hover.t)}
               cy={y(hover.c)}
               r="4.5"
-              fill="#22d3ee"
+              fill="#c0713f"
               stroke="var(--surface)"
               strokeWidth="2"
               filter="url(#vcGlow)"

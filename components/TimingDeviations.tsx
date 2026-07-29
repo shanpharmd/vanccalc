@@ -329,7 +329,7 @@ export function TimingDeviations({ pk, complete }: Props) {
             <div className="mt-5">
               {restart.hoursToThreshold !== null ? (
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="text-4xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  <span className="text-4xl font-semibold tabular-nums text-accent-600 dark:text-accent-400">
                     {restart.hoursToThreshold.toFixed(1)}
                   </span>
                   <span className="text-sm text-ink-500 dark:text-ink-400">hours from the draw</span>
@@ -482,7 +482,7 @@ function Stat({
   const color = warn
     ? "text-amber-600 dark:text-amber-400"
     : accent
-    ? "text-emerald-600 dark:text-emerald-400"
+    ? "text-accent-600 dark:text-accent-400"
     : "text-ink-900 dark:text-ink-100";
   return (
     <div className="rounded-xl border border-ink-200 dark:border-ink-800 bg-ink-50/50 dark:bg-ink-950/30 p-3.5">

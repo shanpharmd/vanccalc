@@ -62,8 +62,8 @@ export function AntibioticDosing({ crCl, normalized }: Props) {
       <div className="card p-5">
         <div className="flex flex-col sm:flex-row sm:items-center gap-5">
           <div className="flex items-center gap-3.5">
-            <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/40 p-2.5 ring-1 ring-emerald-100 dark:ring-emerald-900/50">
-              <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="rounded-xl bg-brand-50 dark:bg-brand-950/50 p-2.5 ring-1 ring-brand-100 dark:ring-brand-900/50">
+              <Activity className="w-5 h-5 text-brand-600 dark:text-brand-300" />
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-wider text-ink-500 dark:text-ink-400">
@@ -157,7 +157,7 @@ export function AntibioticDosing({ crCl, normalized }: Props) {
                         <span className="text-xs text-ink-600 dark:text-ink-400 leading-snug flex-1">
                           {r.indication}
                         </span>
-                        <span className="text-sm font-semibold font-mono text-emerald-700 dark:text-emerald-400 text-right whitespace-nowrap">
+                        <span className="text-sm font-semibold font-mono text-accent-600 dark:text-accent-400 text-right whitespace-nowrap">
                           {r.dose}
                         </span>
                       </div>
@@ -271,7 +271,7 @@ function AminoglycosideCard({ data }: { data: AminoglycosideResult }) {
                 peak {t.peak} · trough {t.trough}
               </div>
             </div>
-            <div className="text-sm font-semibold font-mono text-emerald-700 dark:text-emerald-400 text-right whitespace-nowrap">
+            <div className="text-sm font-semibold font-mono text-accent-600 dark:text-accent-400 text-right whitespace-nowrap">
               {t.finalDose}
             </div>
           </div>
@@ -290,7 +290,7 @@ function AminoglycosideCard({ data }: { data: AminoglycosideResult }) {
               className="inline-flex items-baseline gap-1.5 rounded-lg bg-white dark:bg-ink-900 ring-1 ring-ink-200 dark:ring-ink-700 px-2.5 py-1 text-xs text-ink-600 dark:text-ink-300"
             >
               {e.label}
-              <strong className="font-mono text-emerald-700 dark:text-emerald-400">
+              <strong className="font-mono text-accent-600 dark:text-accent-400">
                 {e.dose} mg
               </strong>
             </span>

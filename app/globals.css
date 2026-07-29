@@ -3,23 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f6f7f9;
+  --bg: #f7f7f5;
   --surface: #ffffff;
-  --ink: #0f172a;
-  --muted: #64748b;
-  --border: #e2e8f0;
-  --brand: #0891b2;
-  --accent: #10b981;
+  --ink: #1b1a18;
+  --muted: #6c6b65;
+  --border: #e3e2df;
+  --brand: #2b5480;
+  --accent: #c0713f;
 }
 
 .dark {
-  --bg: #020617;
-  --surface: #0f172a;
-  --ink: #e2e8f0;
-  --muted: #94a3b8;
-  --border: #1e293b;
-  --brand: #22d3ee;
-  --accent: #34d399;
+  /* Deep navy-graphite so dark mode belongs to the same family as the navy chrome. */
+  --bg: #0d1319;
+  --surface: #141c24;
+  --ink: #e8e6e3;
+  --muted: #98a2ac;
+  --border: #24303b;
+  --brand: #648eb8;
+  --accent: #dc8b5c;
 }
 
 html, body {

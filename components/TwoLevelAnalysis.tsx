@@ -369,7 +369,7 @@ export function TwoLevelAnalysis({ normalized, populationPk, target }: Props) {
                 Current ({result.currentRegimen.dose} mg q{result.currentRegimen.frequency}h)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block w-6 h-0.5 bg-cyan-600" />
+                <span className="inline-block w-6 h-0.5 bg-brand-600" />
                 Recommended ({result.recommendedRegimen.dose} mg q{result.recommendedRegimen.frequency}h)
               </span>
             </div>
@@ -558,7 +558,7 @@ function AucBar({
           className={`absolute top-0 h-full rounded-full transition-all ${
             color === "amber"
               ? "bg-amber-400 dark:bg-amber-500"
-              : "bg-cyan-500 dark:bg-cyan-400"
+              : "bg-brand-600 dark:bg-brand-400"
           }`}
           style={{ width: `${pct}%` }}
         />
