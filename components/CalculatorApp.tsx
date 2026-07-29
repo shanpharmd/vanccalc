@@ -14,6 +14,7 @@ import { TwoLevelAnalysis } from "./TwoLevelAnalysis";
 import { CrClCalculator } from "./CrClCalculator";
 import { AntibioticDosing } from "./AntibioticDosing";
 import { PredictLevels } from "./PredictLevels";
+import { TimingDeviations } from "./TimingDeviations";
 import { isPatientComplete, normalizePatient, validatePatient } from "@/lib/units";
 import {
   pkParams,
@@ -23,7 +24,14 @@ import {
 } from "@/lib/vancoMath";
 import type { PatientInput, RegimenResult, TargetRange } from "@/lib/types";
 
-type Tab = "empiric" | "single-level" | "two-level" | "predict" | "crcl" | "antibiotics";
+type Tab =
+  | "empiric"
+  | "single-level"
+  | "two-level"
+  | "predict"
+  | "timing"
+  | "crcl"
+  | "antibiotics";
 
 const DEFAULT_TARGET: TargetRange = { aucMin: 400, aucMax: 600, mic: 1 };
 
@@ -151,6 +159,9 @@ export default function CalculatorApp() {
             <TabBtn active={activeTab === "predict"} onClick={() => setActiveTab("predict")}>
               Predict Levels
             </TabBtn>
+            <TabBtn active={activeTab === "timing"} onClick={() => setActiveTab("timing")}>
+              Timing
+            </TabBtn>
             <TabBtn active={activeTab === "crcl"} onClick={() => setActiveTab("crcl")}>
               CrCl Calculator
             </TabBtn>
@@ -267,6 +278,11 @@ export default function CalculatorApp() {
         {/* ── Predict Levels tab ── */}
         {activeTab === "predict" && (
           <PredictLevels pk={pk} target={target} complete={complete && !hasErrors} />
+        )}
+
+        {/* ── Timing deviations tab ── */}
+        {activeTab === "timing" && (
+          <TimingDeviations pk={pk} target={target} complete={complete && !hasErrors} />
         )}
 
         {/* ── Standalone CrCl Calculator tab ── */}

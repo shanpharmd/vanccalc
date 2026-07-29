@@ -23,6 +23,16 @@ interface Props {
   /** Optional steady-state reference lines */
   peak?: number;
   trough?: number;
+  /** Dashed "what was supposed to happen" curve drawn behind the actual one. */
+  ghost?: SimulationPoint[];
+  /** Horizontal threshold line (e.g. restart-dosing target). */
+  threshold?: number;
+  thresholdLabel?: string;
+  /** Explicit dose administration times; falls back to every `frequency` hours. */
+  doseTimes?: number[];
+  /** Draggable level-draw marker (hours). Enables drag when onMarkerChange is set. */
+  marker?: number | null;
+  onMarkerChange?: (t: number) => void;
 }
 
 export function VancoChart({
@@ -32,6 +42,12 @@ export function VancoChart({
   hoursTotal = 96,
   peak,
   trough,
+  ghost,
+  threshold,
+  thresholdLabel,
+  doseTimes,
+  marker = null,
+  onMarkerChange,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const lineRef = useRef<SVGPathElement>(null);
@@ -39,9 +55,14 @@ export function VancoChart({
 
   const yMax = useMemo(() => {
     if (!data.length) return 10;
-    const m = Math.max(...data.map((d) => d.c), 1);
+    const m = Math.max(
+      ...data.map((d) => d.c),
+      ...(ghost?.map((d) => d.c) ?? []),
+      threshold ?? 0,
+      1
+    );
     return Math.max(5, Math.ceil((m * 1.18) / 5) * 5);
-  }, [data]);
+  }, [data, ghost, threshold]);
 
   const x = useCallback((t: number) => PAD.left + (t / hoursTotal) * PLOT_W, [hoursTotal]);
   const y = useCallback((c: number) => PAD.top + PLOT_H - (c / yMax) * PLOT_H, [yMax]);
@@ -52,6 +73,13 @@ export function VancoChart({
       .map((d, i) => `${i === 0 ? "M" : "L"}${x(d.t).toFixed(2)},${y(d.c).toFixed(2)}`)
       .join(" ");
   }, [data, x, y]);
+
+  const ghostPath = useMemo(() => {
+    if (!ghost?.length) return "";
+    return ghost
+      .map((d, i) => `${i === 0 ? "M" : "L"}${x(d.t).toFixed(2)},${y(d.c).toFixed(2)}`)
+      .join(" ");
+  }, [ghost, x, y]);
 
   const areaPath = useMemo(() => {
     if (!data.length) return "";
@@ -74,17 +102,64 @@ export function VancoChart({
     p.style.strokeDashoffset = "0";
   }, [linePath]);
 
-  // ── Pointer scrubbing ──
+  // ── Pointer scrubbing / marker dragging ──
+  const [dragging, setDragging] = useState(false);
+
+  /** Convert a pointer event to a clamped time in hours. */
+  const timeFromEvent = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>): number | null => {
+      const svg = svgRef.current;
+      if (!svg) return null;
+      const rect = svg.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) * (VIEW_W / rect.width);
+      const t = ((sx - PAD.left) / PLOT_W) * hoursTotal;
+      return Math.max(0, Math.min(hoursTotal, t));
+    },
+    [hoursTotal]
+  );
+
   const handleMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    const svg = svgRef.current;
-    if (!svg || data.length < 2) return;
-    const rect = svg.getBoundingClientRect();
-    const sx = (e.clientX - rect.left) * (VIEW_W / rect.width);
-    const t = ((sx - PAD.left) / PLOT_W) * hoursTotal;
+    if (data.length < 2) return;
+    const t = timeFromEvent(e);
+    if (t === null) return;
     const step = data[1].t - data[0].t || 0.25;
-    const idx = Math.max(0, Math.min(data.length - 1, Math.round(t / step)));
-    setHoverIdx(idx);
+    setHoverIdx(Math.max(0, Math.min(data.length - 1, Math.round(t / step))));
+    if (dragging && onMarkerChange) onMarkerChange(Number(t.toFixed(2)));
   };
+
+  const handleDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (onMarkerChange) {
+      const t = timeFromEvent(e);
+      if (t !== null) {
+        setDragging(true);
+        e.currentTarget.setPointerCapture(e.pointerId);
+        onMarkerChange(Number(t.toFixed(2)));
+      }
+    }
+    handleMove(e);
+  };
+
+  const endDrag = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (dragging) {
+      setDragging(false);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* pointer already released */
+      }
+    }
+  };
+
+  /** Concentration on the actual curve at an arbitrary time (for the marker). */
+  const concAt = useCallback(
+    (t: number) => {
+      if (data.length < 2) return 0;
+      const step = data[1].t - data[0].t || 0.25;
+      const i = Math.max(0, Math.min(data.length - 1, Math.round(t / step)));
+      return data[i].c;
+    },
+    [data]
+  );
 
   const hover = hoverIdx !== null ? data[hoverIdx] : null;
 
@@ -112,10 +187,11 @@ export function VancoChart({
 
   // Dose start markers along the baseline
   const doseMarks = useMemo(() => {
+    if (doseTimes?.length) return doseTimes.filter((t) => t >= 0 && t <= hoursTotal);
     const out: number[] = [];
     for (let t = 0; t <= hoursTotal; t += frequency) out.push(t);
     return out;
-  }, [frequency, hoursTotal]);
+  }, [doseTimes, frequency, hoursTotal]);
 
   if (!data.length) {
     return (
@@ -132,10 +208,14 @@ export function VancoChart({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        className="w-full h-auto touch-none"
+        className={`w-full h-auto touch-none ${onMarkerChange ? "cursor-crosshair" : ""}`}
         onPointerMove={handleMove}
-        onPointerDown={handleMove}
-        onPointerLeave={() => setHoverIdx(null)}
+        onPointerDown={handleDown}
+        onPointerUp={endDrag}
+        onPointerLeave={(e) => {
+          endDrag(e);
+          setHoverIdx(null);
+        }}
       >
         <defs>
           <linearGradient id="vcFill" x1="0" y1="0" x2="0" y2="1">
@@ -253,6 +333,43 @@ export function VancoChart({
           />
         ))}
 
+        {/* threshold line */}
+        {threshold !== undefined && threshold > 0 && threshold < yMax && (
+          <g>
+            <line
+              x1={PAD.left}
+              x2={VIEW_W - PAD.right}
+              y1={y(threshold)}
+              y2={y(threshold)}
+              stroke="#f59e0b"
+              strokeWidth="1.5"
+              strokeDasharray="6 4"
+              opacity="0.9"
+            />
+            <text
+              x={VIEW_W - PAD.right - 4}
+              y={y(threshold) - 6}
+              textAnchor="end"
+              fontSize="10"
+              fill="#f59e0b"
+            >
+              {thresholdLabel ?? `${threshold} mcg/mL`}
+            </text>
+          </g>
+        )}
+
+        {/* ghost (scheduled) curve */}
+        {ghostPath && (
+          <path
+            d={ghostPath}
+            fill="none"
+            stroke="var(--muted)"
+            strokeWidth="1.5"
+            strokeDasharray="5 5"
+            opacity="0.55"
+          />
+        )}
+
         {/* area + curve */}
         <path d={areaPath} fill="url(#vcFill)" className="vc-area" />
         <path
@@ -265,6 +382,41 @@ export function VancoChart({
           strokeLinecap="round"
           filter="url(#vcGlow)"
         />
+
+        {/* draggable level-draw marker */}
+        {marker !== null && marker !== undefined && (
+          <g pointerEvents="none">
+            <line
+              x1={x(marker)}
+              x2={x(marker)}
+              y1={PAD.top}
+              y2={PAD.top + PLOT_H}
+              stroke="#f59e0b"
+              strokeWidth="1.5"
+            />
+            <circle
+              cx={x(marker)}
+              cy={y(concAt(marker))}
+              r="6"
+              fill="#f59e0b"
+              stroke="var(--surface)"
+              strokeWidth="2"
+            />
+            <g transform={`translate(${x(marker)}, ${PAD.top - 8})`}>
+              <rect x="-26" y="-14" width="52" height="17" rx="4" fill="#f59e0b" />
+              <text
+                x="0"
+                y="-1.5"
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="600"
+                fill="#fff"
+              >
+                DRAW
+              </text>
+            </g>
+          </g>
+        )}
 
         {/* scrub cursor */}
         {hover && (
