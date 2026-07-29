@@ -14,6 +14,10 @@ import { lbToKg, kgToLb, inToCm, umolToMgDl } from "@/lib/units";
 //   BMI <18.5  → actual body weight (no adjustment)
 //   BMI 18.5–24.9 → ideal body weight; range spans ideal↔actual
 //   BMI ≥25    → adjusted body weight; range spans ideal↔adjusted
+// eGFR (CKD-EPI 2021, race-free; Inker NEJM 2021), adults ≥18:
+//   eGFR = 142 × min(SCr/κ,1)^α × max(SCr/κ,1)^−1.200 × 0.9938^age × (1.012 if female)
+//   κ: 0.7 female / 0.9 male; α: −0.241 female / −0.302 male; units mL/min/1.73 m²
+//   Absolute (de-indexed) eGFR = eGFR × BSA / 1.73, BSA by Mosteller.
 
 type Sex = "male" | "female";
 type WeightUnit = "kg" | "lb";
@@ -54,6 +58,26 @@ interface CrClResult {
   rangeLow?: number;
   rangeHigh?: number;
   rangeNote?: string;
+  tbwKg: number;
+  egfr?: number;         // CKD-EPI 2021, mL/min/1.73 m² (adults ≥18 only)
+  bsa?: number;          // Mosteller, m²
+  egfrAbsolute?: number; // de-indexed: eGFR × BSA / 1.73, mL/min
+}
+
+/** CKD-EPI 2021 race-free creatinine equation. Valid for adults ≥18. */
+function ckdEpi2021(age: number, scrMgDl: number, sex: Sex): number | undefined {
+  if (age < 18) return undefined;
+  const kappa = sex === "female" ? 0.7 : 0.9;
+  const alpha = sex === "female" ? -0.241 : -0.302;
+  const sexMult = sex === "female" ? 1.012 : 1;
+  const ratio = scrMgDl / kappa;
+  return (
+    142 *
+    Math.pow(Math.min(ratio, 1), alpha) *
+    Math.pow(Math.max(ratio, 1), -1.2) *
+    Math.pow(0.9938, age) *
+    sexMult
+  );
 }
 
 function computeCrCl(f: CrClFields): CrClResult | null {
@@ -71,10 +95,11 @@ function computeCrCl(f: CrClFields): CrClResult | null {
 
   const cg = (w: number) => ((140 - f.age!) * w * sexFactor) / (72 * scrMgDl);
   const cgActual = cg(wtKg);
+  const egfr = ckdEpi2021(f.age, scrMgDl, f.sex);
 
   // Height is optional. Without it we can only report the actual-weight CG.
   if (f.height === undefined || f.height <= 0) {
-    return { cgActual };
+    return { cgActual, tbwKg: wtKg, egfr };
   }
 
   const heightCm = f.heightUnit === "cm" ? f.height : inToCm(f.height);
@@ -82,6 +107,8 @@ function computeCrCl(f: CrClFields): CrClResult | null {
   const ibwKg = (f.sex === "female" ? 45.5 : 50) + 2.3 * (heightIn - 60);
   const adjBwKg = ibwKg + 0.4 * (wtKg - ibwKg);
   const bmi = wtKg / Math.pow(heightCm / 100, 2);
+  const bsa = Math.sqrt((heightCm * wtKg) / 3600); // Mosteller
+  const egfrAbsolute = egfr !== undefined ? (egfr * bsa) / 1.73 : undefined;
 
   const cgIbw = cg(ibwKg);
   const cgAdj = cg(adjBwKg);
@@ -136,6 +163,10 @@ function computeCrCl(f: CrClFields): CrClResult | null {
     rangeLow,
     rangeHigh,
     rangeNote,
+    tbwKg: wtKg,
+    egfr,
+    bsa,
+    egfrAbsolute,
   };
 }
 
@@ -169,8 +200,16 @@ export function CrClCalculator() {
       lines.push(
         `Modified for ${result.category} patient (${result.modifiedWeightLabel}): ${r0(result.modified!)} mL/min`,
         `Adjusted body weight: ${r0(result.adjBwKg!)} kg (${r0(kgToLb(result.adjBwKg!))} lb)`,
-        `IBW: ${r0(result.ibwKg!)} kg · BMI: ${r1(result.bmi!)}`,
+        `IBW: ${r0(result.ibwKg!)} kg · BMI: ${r1(result.bmi!)} · BSA: ${result.bsa!.toFixed(2)} m²`,
         `Range: ${r1(result.rangeLow!)}–${r1(result.rangeHigh!)} mL/min`
+      );
+    }
+    if (result.egfr !== undefined) {
+      lines.push(
+        `eGFR (CKD-EPI 2021): ${r0(result.egfr)} mL/min/1.73 m²` +
+          (result.egfrAbsolute !== undefined
+            ? ` · absolute ${r0(result.egfrAbsolute)} mL/min (BSA-adjusted)`
+            : "")
       );
     }
     navigator.clipboard?.writeText(lines.join("\n"));
@@ -390,11 +429,47 @@ export function CrClCalculator() {
           )}
         </div>
 
+        {/* eGFR comparison */}
+        {result?.egfr !== undefined && (
+          <div className="card p-5">
+            <h3 className="card-title mb-3">eGFR Comparison (CKD-EPI 2021)</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <Stat
+                label="eGFR (indexed)"
+                value={r0(result.egfr).toString()}
+                sub="mL/min/1.73 m²"
+                highlight
+              />
+              {result.egfrAbsolute !== undefined && (
+                <Stat
+                  label="eGFR (absolute)"
+                  value={r0(result.egfrAbsolute).toString()}
+                  sub={`mL/min · BSA ${result.bsa!.toFixed(2)} m²`}
+                />
+              )}
+              <Stat
+                label="CrCl (Cockcroft-Gault)"
+                value={r0(result.category ? result.modified! : result.cgActual).toString()}
+                sub="mL/min"
+              />
+            </div>
+            <p className="text-[11px] text-ink-500 dark:text-ink-400 mt-3 leading-snug">
+              These two numbers answer different questions and often disagree. The indexed
+              eGFR is what the lab reports; use it for CKD staging and for drugs labeled by
+              eGFR (SGLT2 inhibitors, metformin, some DOAC criteria). Most FDA renal dosing
+              recommendations, including vancomycin and aminoglycosides, were derived with
+              Cockcroft-Gault CrCl. At extremes of body size, de-index eGFR using BSA
+              (shown as absolute) before applying it to drug dosing.
+            </p>
+          </div>
+        )}
+
         {/* Supporting body-size stats */}
         {result?.category && (
           <div className="card p-5">
             <h3 className="card-title mb-3">Body Size &amp; Weight Used</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <Stat label="Actual body weight" value={`${r1(result.tbwKg)} kg`} sub={`${r0(kgToLb(result.tbwKg))} lb`} />
               <Stat label="Ideal body weight" value={`${r0(result.ibwKg!)} kg`} sub={`${r0(kgToLb(result.ibwKg!))} lb`} />
               <Stat
                 label="Adjusted body weight"
@@ -403,6 +478,7 @@ export function CrClCalculator() {
                 highlight
               />
               <Stat label="BMI" value={r1(result.bmi!)} sub="kg/m²" />
+              <Stat label="BSA (Mosteller)" value={result.bsa!.toFixed(2)} sub="m²" />
               <Stat
                 label="Weight category"
                 value={
@@ -436,12 +512,22 @@ export function CrClCalculator() {
               weight; 18.5–24.9 uses ideal (range to actual); ≥25 uses adjusted (range to IBW).
               If actual weight is below IBW, actual weight is used.
             </p>
+            <p className="font-mono text-xs bg-ink-50 dark:bg-ink-950 rounded-lg p-3 text-ink-800 dark:text-ink-200">
+              eGFR = 142 × min(SCr/κ, 1)^α × max(SCr/κ, 1)^−1.200 × 0.9938^age × 1.012 (if female)
+            </p>
+            <p>
+              <strong>eGFR (CKD-EPI 2021, race-free):</strong> κ = 0.7 (female) / 0.9 (male);
+              α = −0.241 (female) / −0.302 (male). Reported in mL/min/1.73 m²; adults ≥18 only.
+              Absolute eGFR = indexed eGFR × BSA / 1.73, with BSA by Mosteller
+              (√[height cm × weight kg / 3600]).
+            </p>
             <p className="text-[11px] text-ink-500 dark:text-ink-400 pt-1 border-t border-ink-200 dark:border-ink-800 mt-2">
               References: Cockcroft DW, Gault MH. Nephron 1976;16(1):31-41 · Winter MA et al.
               Pharmacotherapy 2012;32(7):604-12 · Brown DL et al. Ann Pharmacother
-              2013;47(7-8):1039-44. Cockcroft-Gault estimates CrCl and may over-estimate GFR by
-              10–20%. For informational use by healthcare professionals; not a substitute for
-              clinical judgment.
+              2013;47(7-8):1039-44 · Inker LA et al. N Engl J Med 2021;385(19):1737-49 ·
+              Mosteller RD. N Engl J Med 1987;317(17):1098. Cockcroft-Gault estimates CrCl and
+              may over-estimate GFR by 10–20%. For informational use by healthcare
+              professionals; not a substitute for clinical judgment.
             </p>
           </div>
         </div>
