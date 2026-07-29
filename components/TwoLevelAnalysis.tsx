@@ -1,16 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import { AlertTriangle, Clock, FlaskConical, Info } from "lucide-react";
+import { VancoChart } from "./VancoChart";
 import { twoLevelAnalysis, simulateConcentration, fmt } from "@/lib/vancoMath";
 import type {
   NormalizedPatient,
@@ -88,16 +80,18 @@ export function TwoLevelAnalysis({ normalized, populationPk, target }: Props) {
     return twoLevelAnalysis(tl as TwoLevelInput, normalized, target);
   }, [tl, normalized, target, complete, inputErr]);
 
-  const chartData = useMemo(() => {
-    if (!result) return [];
-    const currentSim = simulateConcentration(result.currentRegimen, result.patientPk, 96, 0.25);
-    const newSim = simulateConcentration(result.recommendedRegimen, result.patientPk, 96, 0.25);
-    return currentSim.map((pt, i) => ({
-      t: pt.t,
-      current: pt.c,
-      recommended: newSim[i]?.c ?? 0,
-    }));
-  }, [result]);
+  const currentSim = useMemo(
+    () =>
+      result ? simulateConcentration(result.currentRegimen, result.patientPk, 96, 0.25) : [],
+    [result]
+  );
+  const recommendedSim = useMemo(
+    () =>
+      result
+        ? simulateConcentration(result.recommendedRegimen, result.patientPk, 96, 0.25)
+        : [],
+    [result]
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
@@ -365,7 +359,7 @@ export function TwoLevelAnalysis({ normalized, populationPk, target }: Props) {
       )}
 
       {/* ── Dual-series PK chart ── */}
-      {result && chartData.length > 0 && (
+      {result && recommendedSim.length > 0 && (
         <div className="card p-5 lg:col-span-12">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h3 className="card-title">Predicted Concentration–Time Curve</h3>
@@ -381,68 +375,15 @@ export function TwoLevelAnalysis({ normalized, populationPk, target }: Props) {
             </div>
           </div>
 
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 8, right: 16, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="tlCurrentFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.01} />
-                  </linearGradient>
-                  <linearGradient id="tlRecFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  domain={[0, 96]}
-                  ticks={[0, 12, 24, 36, 48, 60, 72, 84, 96]}
-                  label={{ value: "Time (h)", position: "insideBottom", offset: -4, fill: "var(--muted)", fontSize: 11 }}
-                  stroke="var(--muted)"
-                />
-                <YAxis
-                  stroke="var(--muted)"
-                  width={40}
-                  label={{ value: "Conc (mcg/mL)", angle: -90, position: "insideLeft", offset: 18, fill: "var(--muted)", fontSize: 11 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                  formatter={(v: number, name: string) => [
-                    `${v.toFixed(1)} mcg/mL`,
-                    name === "current" ? "Current" : "Recommended",
-                  ]}
-                  labelFormatter={(t: number) => `t = ${t} h`}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="current"
-                  stroke="#f59e0b"
-                  strokeWidth={2}
-                  strokeDasharray="6 3"
-                  fill="url(#tlCurrentFill)"
-                  isAnimationActive={false}
-                  legendType="none"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="recommended"
-                  stroke="#0891b2"
-                  strokeWidth={2}
-                  fill="url(#tlRecFill)"
-                  isAnimationActive={false}
-                  legendType="none"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          <VancoChart
+            data={recommendedSim}
+            ghost={currentSim}
+            frequency={result.recommendedRegimen.frequency}
+            infusionTime={result.recommendedRegimen.infusionTime}
+            hoursTotal={96}
+            peak={result.recommendedResult.peak}
+            trough={result.recommendedResult.trough}
+          />
           <p className="text-[11px] text-ink-400 dark:text-ink-500 mt-2">
             Both curves use patient-specific ke and CL back-calculated from the two measured levels.
             Simulation assumes steady-state conditions on the displayed regimen.
