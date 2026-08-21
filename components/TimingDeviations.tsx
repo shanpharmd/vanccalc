@@ -10,6 +10,7 @@ import {
   correctLevelTiming,
   deviationImpact,
   timeToThreshold,
+  holdRestartAnalysis,
   concentrationAt,
   type DoseEvent,
 } from "@/lib/timingMath";
@@ -23,6 +24,8 @@ interface Props {
 
 type Scenario = "level" | "dose" | "missed" | "restart";
 const HOURS = 96;
+/** Shorter window for the restart view: the draw plus ~3 days. */
+const HOURS_RESTART = 72;
 
 export function TimingDeviations({ pk, complete }: Props) {
   const [scenario, setScenario] = useState<Scenario>("level");
@@ -41,8 +44,10 @@ export function TimingDeviations({ pk, complete }: Props) {
   const [shiftHours, setShiftHours] = useState<number | undefined>(3);
 
   // Restart scenario
-  const [currentLevel, setCurrentLevel] = useState<number | undefined>(32);
+  const [currentLevel, setCurrentLevel] = useState<number | undefined>(29.9);
   const [threshold, setThreshold] = useState<number | undefined>(15);
+  /** null = follow the optimal hold; a number = user-chosen restart delay (h). */
+  const [restartDelay, setRestartDelay] = useState<number | null>(null);
 
   // Chart marker (hours) for the level draw
   const [marker, setMarker] = useState<number | null>(null);
@@ -98,6 +103,45 @@ export function TimingDeviations({ pk, complete }: Props) {
     return timeToThreshold(currentLevel, threshold, pk);
   }, [pk, currentLevel, threshold]);
 
+  // Full hold-and-restart simulation for the chosen restart delay.
+  const hold = useMemo(() => {
+    if (!pk || !regimenOk || currentLevel === undefined || currentLevel <= 0) return null;
+    return holdRestartAnalysis(
+      {
+        measuredLevel: currentLevel,
+        newDose: dose!,
+        newFrequency: freq!,
+        newInfusionTime: tInf!,
+        restartDelayHours: restartDelay ?? undefined,
+      },
+      pk,
+      HOURS_RESTART
+    );
+  }, [pk, regimenOk, currentLevel, dose, freq, tInf, restartDelay]);
+
+  // The optimal-restart curve, drawn as a ghost whenever the user deviates from it.
+  const holdOptimal = useMemo(() => {
+    if (!pk || !regimenOk || currentLevel === undefined || currentLevel <= 0) return null;
+    return holdRestartAnalysis(
+      {
+        measuredLevel: currentLevel,
+        newDose: dose!,
+        newFrequency: freq!,
+        newInfusionTime: tInf!,
+      },
+      pk,
+      HOURS_RESTART
+    );
+  }, [pk, regimenOk, currentLevel, dose, freq, tInf]);
+
+  /** Dose administration times for the restart chart. */
+  const restartDoseTimes = useMemo(() => {
+    if (!hold || !freq) return [];
+    const out: number[] = [];
+    for (let t = hold.restartHours; t <= HOURS_RESTART; t += freq) out.push(t);
+    return out;
+  }, [hold, freq]);
+
   // Concentration at the dragged marker, on the actual curve
   const markerConc = useMemo(() => {
     if (marker === null || !pk || !actual.length) return null;
@@ -135,14 +179,30 @@ export function TimingDeviations({ pk, complete }: Props) {
           </ScenarioBtn>
         </div>
 
-        {/* Regimen inputs (not needed for restart) */}
-        {scenario !== "restart" && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5 pt-4 border-t border-ink-100 dark:border-ink-800">
-            <Num label="Dose (mg)" value={dose} onChange={setDose} step={250} placeholder="1000" />
-            <Num label="Frequency (h)" value={freq} onChange={setFreq} placeholder="12" />
+        {/* Regimen inputs. On the restart tab these describe the NEW regimen. */}
+        <div className="mt-5 pt-4 border-t border-ink-100 dark:border-ink-800">
+          {scenario === "restart" && (
+            <p className="text-[11px] text-ink-500 dark:text-ink-400 mb-3">
+              The regimen you intend to restart on. Pull these from the Empiric or Single-Level tab.
+            </p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Num
+              label={scenario === "restart" ? "New dose (mg)" : "Dose (mg)"}
+              value={dose}
+              onChange={setDose}
+              step={250}
+              placeholder="1000"
+            />
+            <Num
+              label={scenario === "restart" ? "New frequency (h)" : "Frequency (h)"}
+              value={freq}
+              onChange={setFreq}
+              placeholder="12"
+            />
             <Num label="Infusion (h)" value={tInf} onChange={setTInf} step={0.5} placeholder="1.5" />
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── Scenario-specific controls + results ── */}
@@ -317,13 +377,23 @@ export function TimingDeviations({ pk, complete }: Props) {
               step={0.1}
               placeholder="32"
             />
-            <Num
-              label="Restart threshold (mcg/mL)"
-              value={threshold}
-              onChange={setThreshold}
-              step={0.5}
-              placeholder="15"
-            />
+            <div>
+              <Num
+                label="Restart threshold (mcg/mL)"
+                value={threshold}
+                onChange={setThreshold}
+                step={0.5}
+                placeholder="15"
+              />
+              {hold && Math.abs((threshold ?? 0) - hold.ssTrough) > 0.1 && (
+                <button
+                  onClick={() => setThreshold(Number(hold.ssTrough.toFixed(1)))}
+                  className="mt-1.5 text-[11px] text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  Use {hold.ssTrough.toFixed(1)}, the steady-state trough of the new regimen
+                </button>
+              )}
+            </div>
           </div>
           {restart && (
             <div className="mt-5">
@@ -343,6 +413,221 @@ export function TimingDeviations({ pk, complete }: Props) {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Restart: what actually happens after you resume ── */}
+      {scenario === "restart" && hold && holdOptimal && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <h3 className="card-title">Restarting on {dose} mg q{freq}h</h3>
+            <span
+              className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                hold.status === "regimen-unsuitable"
+                  ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                  : hold.status === "optimal"
+                  ? "bg-accent-100 text-accent-700 dark:bg-accent-900/40 dark:text-accent-300"
+                  : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+              }`}
+            >
+              {hold.status === "regimen-unsuitable"
+                ? "Regimen too aggressive for this clearance"
+                : hold.status === "optimal"
+                ? "Lands at steady state"
+                : hold.status === "early"
+                ? "Restarting early"
+                : "Restarting late"}
+            </span>
+          </div>
+          <p className="text-xs text-ink-500 dark:text-ink-400 mb-4 leading-relaxed">
+            Residual drug keeps decaying after you restart, so the first trough is the new dose{" "}
+            <em>plus</em> what is left over. The ideal hold brings the level down to the new
+            regimen&apos;s steady-state trough.
+          </p>
+
+          {/* Headline: optimal hold, or a hard stop when the regimen itself is wrong */}
+          {hold.regimenSupratherapeutic ? (
+            <div className="rounded-xl border border-red-200 dark:border-red-900 bg-red-50/70 dark:bg-red-950/20 p-4 mb-4">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-3xl font-semibold tabular-nums text-red-700 dark:text-red-300">
+                  {hold.ssTrough.toFixed(0)}
+                </span>
+                <span className="text-sm text-ink-700 dark:text-ink-200">
+                  mcg/mL steady-state trough on {dose} mg q{freq}h
+                </span>
+              </div>
+              <p className="text-[11px] text-ink-600 dark:text-ink-300 mt-1.5 leading-relaxed">
+                Holding does not fix this. At CrCl{" "}
+                <span className="font-mono">{pk.crCl.toFixed(0)}</span> mL/min (t½{" "}
+                <span className="font-mono">{pk.halfLife.toFixed(1)} h</span>) this regimen
+                accumulates to a supratherapeutic trough no matter when you start it. Lower the dose
+                or extend the interval, then come back to restart timing.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-accent-200 dark:border-accent-900 bg-accent-50/60 dark:bg-accent-900/15 p-4 mb-4">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-3xl font-semibold tabular-nums text-accent-700 dark:text-accent-300">
+                  {hold.optimalHoldHours.toFixed(1)} h
+                </span>
+                <span className="text-sm text-ink-600 dark:text-ink-300">
+                  optimal hold, restarting when the level reaches{" "}
+                  <span className="font-mono font-semibold">{hold.ssTrough.toFixed(1)}</span> mcg/mL
+                </span>
+              </div>
+              <p className="text-[11px] text-ink-500 dark:text-ink-400 mt-1.5">
+                That is the steady-state trough of {dose} mg q{freq}h in this patient. Restart there
+                and the first trough matches steady state exactly, with no accumulation overshoot.
+              </p>
+            </div>
+          )}
+
+          {/* Restart-time slider */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <label className="field-label mb-0">Restart the new regimen at</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-mono font-semibold text-brand-600 dark:text-brand-400 tabular-nums">
+                  {hold.restartHours.toFixed(1)} h after the draw
+                </span>
+                {restartDelay !== null && (
+                  <button
+                    onClick={() => setRestartDelay(null)}
+                    className="text-[11px] text-ink-400 hover:text-ink-600 dark:hover:text-ink-200 transition underline"
+                  >
+                    reset to optimal
+                  </button>
+                )}
+              </div>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={48}
+              step={0.5}
+              value={hold.restartHours}
+              onChange={(e) => setRestartDelay(Number(e.target.value))}
+              className="w-full accent-brand-600 cursor-pointer"
+              aria-label="Hours from the level draw until the new regimen restarts"
+            />
+            <div className="flex justify-between text-[10px] text-ink-400 dark:text-ink-500 mt-1">
+              <span>now</span>
+              <span>12 h</span>
+              <span>24 h</span>
+              <span>36 h</span>
+              <span>48 h</span>
+            </div>
+          </div>
+
+          {/* Readouts */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat
+              label="Level at restart"
+              value={hold.residualAtRestart.toFixed(1)}
+              unit="mcg/mL residual"
+            />
+            <Delta
+              label="First trough"
+              scheduled={hold.ssTrough}
+              actual={hold.firstTrough}
+              unit="mcg/mL at steady state"
+            />
+            <Delta
+              label="AUC24 after restart"
+              scheduled={hold.ssAuc24}
+              actual={hold.auc24AfterRestart}
+              unit="mg·h/L at steady state"
+              digits={0}
+            />
+            <Stat
+              label="AUC during hold"
+              value={hold.aucDuringHold.toFixed(0)}
+              unit={`vs ${hold.aucExpectedDuringHold.toFixed(0)} mg·h/L on regimen`}
+            />
+          </div>
+
+          {/* The exposure-gap answer */}
+          <p className="text-xs text-ink-600 dark:text-ink-300 mt-3 leading-relaxed">
+            {(() => {
+              const gap = hold.aucDuringHold - hold.aucExpectedDuringHold;
+              const pct =
+                hold.aucExpectedDuringHold > 0
+                  ? (gap / hold.aucExpectedDuringHold) * 100
+                  : 0;
+              if (hold.restartHours < 0.25) return "No hold: the new regimen starts immediately.";
+              return Math.abs(pct) < 15
+                ? `Holding costs essentially nothing in exposure. The decaying residual delivers ${hold.aucDuringHold.toFixed(
+                    0
+                  )} mg·h/L over the ${hold.restartHours.toFixed(
+                    1
+                  )} h hold, versus ${hold.aucExpectedDuringHold.toFixed(
+                    0
+                  )} mg·h/L the regimen would have given in the same window.`
+                : `Over the ${hold.restartHours.toFixed(
+                    1
+                  )} h hold the patient accrues ${hold.aucDuringHold.toFixed(
+                    0
+                  )} mg·h/L, ${gap > 0 ? "above" : "below"} the ${hold.aucExpectedDuringHold.toFixed(
+                    0
+                  )} mg·h/L the regimen would have delivered (${pct > 0 ? "+" : ""}${pct.toFixed(
+                    0
+                  )}%).`;
+            })()}
+          </p>
+
+          {/* Warnings */}
+          {hold.warnings.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {hold.warnings.map((w, i) => (
+                <div
+                  key={i}
+                  className="flex gap-2 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/70 dark:bg-amber-950/20 p-3"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-relaxed">{w}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Restart chart ── */}
+      {scenario === "restart" && hold && holdOptimal && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="card-title">Predicted Levels After Restart</h3>
+            <div className="flex items-center gap-3 text-[11px] text-ink-500 dark:text-ink-400">
+              {hold.status !== "optimal" && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block w-4 border-t-2 border-dashed border-ink-400" />
+                  Optimal restart
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block w-4 border-t-2 border-brand-500" />
+                Your restart
+              </span>
+            </div>
+          </div>
+
+          <VancoChart
+            data={hold.curve}
+            ghost={hold.status !== "optimal" ? holdOptimal.curve : undefined}
+            frequency={freq!}
+            infusionTime={tInf!}
+            hoursTotal={HOURS_RESTART}
+            trough={hold.ssTrough}
+            threshold={hold.ssTrough}
+            thresholdLabel={`SS trough ${hold.ssTrough.toFixed(1)}`}
+            doseTimes={restartDoseTimes}
+          />
+
+          <p className="text-[11px] text-ink-400 dark:text-ink-500 mt-2 leading-relaxed">
+            t = 0 is the moment the level was drawn. The curve falls through the hold window, then
+            the new regimen builds on whatever residual is left. Drag the slider above to test any
+            restart time.
+          </p>
         </div>
       )}
 

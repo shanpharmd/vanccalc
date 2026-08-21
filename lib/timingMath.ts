@@ -299,3 +299,231 @@ export function timeToThreshold(
     clockNote: `About ${h} h ${m} min from the draw (${hours.toFixed(1)} h) to reach ${threshold} mcg/mL.`,
   };
 }
+
+// ─────────────────────────────────────────────────────────────
+//  5. Hold-and-restart simulation (supratherapeutic level)
+// ─────────────────────────────────────────────────────────────
+//
+// The question this answers: "Trough came back at 29.9. The calculator gave me
+// a new regimen. How long do I hold, and what do levels actually do once I
+// restart?"
+//
+// The part that a plain ln(C/target)/ke calculation misses is SUPERPOSITION.
+// When the new regimen restarts, residual drug is still decaying. The first
+// trough is the sum of the new dose plus whatever is left over:
+//
+//     C(t) = C_measured·e^(−ke·t)  +  Σ singleDoseConc(new doses)
+//
+// That gives a clean result worth stating plainly: the ideal restart threshold
+// is the NEW regimen's steady-state trough. Restart there and the patient walks
+// straight into steady state, with no accumulation overshoot and no gap.
+// Restart early and the first trough overshoots; restart late and it dips.
+
+export interface HoldRestartInput {
+  /** Measured (supratherapeutic) level, mcg/mL, at the time of the draw. */
+  measuredLevel: number;
+  /** New regimen. */
+  newDose: number;          // mg
+  newFrequency: number;     // hr (tau)
+  newInfusionTime: number;  // hr
+  /**
+   * Hours from the draw until the first dose of the new regimen.
+   * When undefined, the optimal hold (residual === SS trough) is used.
+   */
+  restartDelayHours?: number;
+  /** Trough above which to flag an overshoot warning. */
+  troughCeiling?: number;   // default 20
+}
+
+export interface HoldRestartResult {
+  // Steady-state reference for the new regimen
+  ssPeak: number;
+  ssTrough: number;
+  ssAuc24: number;
+  /** Hold time until residual decays to the SS trough. 0 when already at/below. */
+  optimalHoldHours: number;
+  // The scenario actually simulated
+  restartHours: number;
+  residualAtRestart: number;
+  firstPeak: number;
+  /** Trough immediately before the SECOND new dose. This is the number that matters. */
+  firstTrough: number;
+  /** firstTrough − ssTrough. Positive = accumulation overshoot. */
+  troughDelta: number;
+  /**
+   * True when the NEW regimen's own steady-state trough exceeds the ceiling.
+   * When this is set, "hold until the level reaches the SS trough" is not valid
+   * advice: the regimen itself is wrong for this patient's clearance, and no
+   * hold duration fixes it. The dose or interval has to change first.
+   */
+  regimenSupratherapeutic: boolean;
+  /** AUC over the first 24 h after restart, residual included. */
+  auc24AfterRestart: number;
+  /** AUC accrued during the hold itself, from residual decay alone. */
+  aucDuringHold: number;
+  /** What the new regimen would have delivered over the same window. */
+  aucExpectedDuringHold: number;
+  status: "optimal" | "early" | "late" | "regimen-unsuitable";
+  warnings: string[];
+  /** Full curve from the draw (t=0) forward. */
+  curve: SimulationPoint[];
+  /** t at which the new regimen starts, for shading the hold window. */
+  holdEndT: number;
+}
+
+/** Steady-state peak, trough and AUC24 for an intermittent infusion. */
+function steadyStateRef(
+  dose: number,
+  tau: number,
+  tInf: number,
+  pk: PKParams
+): { peak: number; trough: number; auc24: number } {
+  const cl = pk.ke * pk.vd;
+  const peak =
+    (dose / (tInf * cl)) *
+    ((1 - Math.exp(-pk.ke * tInf)) / (1 - Math.exp(-pk.ke * tau)));
+  const trough = peak * Math.exp(-pk.ke * (tau - tInf));
+  const auc24 = (dose * (24 / tau)) / cl;
+  return { peak, trough, auc24 };
+}
+
+/**
+ * Full hold-and-restart simulation.
+ *
+ * Time origin (t = 0) is the moment the level was drawn.
+ * References: Rybak MJ et al. ASHP/IDSA/PIDS/SIDP consensus, Am J Health-Syst
+ * Pharm 2020;77:835-64. Murphy JE, Clinical Pharmacokinetics, 6th ed.
+ */
+export function holdRestartAnalysis(
+  input: HoldRestartInput,
+  pk: PKParams,
+  hoursTotal = 72
+): HoldRestartResult {
+  const {
+    measuredLevel,
+    newDose,
+    newFrequency: tau,
+    newInfusionTime: tInf,
+    troughCeiling = 20,
+  } = input;
+
+  const ss = steadyStateRef(newDose, tau, tInf, pk);
+
+  // Optimal hold: decay residual down to the new regimen's SS trough.
+  const optimalHoldHours =
+    measuredLevel > ss.trough ? Math.log(measuredLevel / ss.trough) / pk.ke : 0;
+
+  const restartHours =
+    input.restartDelayHours !== undefined && input.restartDelayHours >= 0
+      ? input.restartDelayHours
+      : optimalHoldHours;
+
+  // New regimen dose events, timed from the draw.
+  const doses: DoseEvent[] = [];
+  for (let t = restartHours; t <= hoursTotal; t += tau) {
+    doses.push({
+      time: t,
+      scheduledTime: t,
+      dose: newDose,
+      infusionTime: tInf,
+      given: true,
+    });
+  }
+
+  // Residual decay from the measured level, plus the new regimen on top.
+  const residual = (t: number) => measuredLevel * Math.exp(-pk.ke * t);
+  const total = (t: number) => residual(t) + concentrationAt(t, doses, pk);
+
+  const residualAtRestart = residual(restartHours);
+  const firstPeak = total(restartHours + tInf);
+  const firstTrough = total(restartHours + tau);
+  const troughDelta = firstTrough - ss.trough;
+
+  // AUC during the hold comes from residual decay alone: (C0 − C_end)/ke.
+  const aucDuringHold = (measuredLevel - residualAtRestart) / pk.ke;
+  const aucExpectedDuringHold = ss.auc24 * (restartHours / 24);
+
+  // AUC over the first 24 h of the new regimen, trapezoidal, residual included.
+  let auc24AfterRestart = 0;
+  const step = 0.05;
+  let prev = total(restartHours);
+  for (let t = restartHours + step; t <= restartHours + 24 + 1e-9; t += step) {
+    const cur = total(t);
+    auc24AfterRestart += ((prev + cur) / 2) * step;
+    prev = cur;
+  }
+
+  // Curve for plotting.
+  const curve: SimulationPoint[] = [];
+  for (let t = 0; t <= hoursTotal + 1e-9; t += 0.25) {
+    curve.push({ t: Number(t.toFixed(2)), c: Number(total(t).toFixed(2)) });
+  }
+
+  // Classify against the optimal restart, with a 1 h grace band.
+  let status: "optimal" | "early" | "late" | "regimen-unsuitable" = "optimal";
+  if (restartHours < optimalHoldHours - 1) status = "early";
+  else if (restartHours > optimalHoldHours + 1) status = "late";
+
+  // Guard: if the new regimen's own steady state is supratherapeutic, the
+  // "hold to the SS trough" target is meaningless and would read as reassurance.
+  const regimenSupratherapeutic = ss.trough > troughCeiling;
+  if (regimenSupratherapeutic) status = "regimen-unsuitable";
+
+  const warnings: string[] = [];
+  if (regimenSupratherapeutic) {
+    warnings.push(
+      `${newDose} mg q${tau}h reaches a steady-state trough of ${ss.trough.toFixed(
+        1
+      )} mcg/mL in this patient (CrCl ${pk.crCl.toFixed(
+        0
+      )} mL/min, t½ ${pk.halfLife.toFixed(
+        1
+      )} h). No hold duration fixes that. Reduce the dose or extend the interval before working out restart timing.`
+    );
+  }
+  if (firstTrough > troughCeiling && !regimenSupratherapeutic) {
+    warnings.push(
+      `Predicted first trough ${firstTrough.toFixed(1)} mcg/mL exceeds ${troughCeiling}. Residual drug is still accumulating on top of the new regimen. Hold longer or lengthen the interval.`
+    );
+  }
+  if (status === "early") {
+    warnings.push(
+      `Restarting ${(optimalHoldHours - restartHours).toFixed(1)} h earlier than optimal. First trough runs ${troughDelta.toFixed(1)} mcg/mL above steady state.`
+    );
+  }
+  if (status === "late") {
+    warnings.push(
+      `Restarting ${(restartHours - optimalHoldHours).toFixed(1)} h later than optimal. First trough dips ${Math.abs(troughDelta).toFixed(1)} mcg/mL below steady state.`
+    );
+  }
+  if (restartHours > 24) {
+    warnings.push(
+      "Hold exceeds 24 h. Redraw a level before restarting rather than relying on the projection."
+    );
+  }
+  if (measuredLevel >= 30) {
+    warnings.push(
+      "Level at or above 30 mcg/mL. Assess renal function and nephrotoxicity risk; a single-point projection assumes elimination is unchanged."
+    );
+  }
+
+  return {
+    ssPeak: ss.peak,
+    ssTrough: ss.trough,
+    ssAuc24: ss.auc24,
+    optimalHoldHours,
+    restartHours,
+    residualAtRestart,
+    firstPeak,
+    firstTrough,
+    troughDelta,
+    regimenSupratherapeutic,
+    auc24AfterRestart,
+    aucDuringHold,
+    aucExpectedDuringHold,
+    status,
+    warnings,
+    curve,
+    holdEndT: restartHours,
+  };
+}
