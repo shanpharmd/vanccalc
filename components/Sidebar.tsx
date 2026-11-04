@@ -2,7 +2,15 @@
 
 import { CheckCircle2, Circle, Scissors, Sliders, Trash2, User } from "lucide-react";
 import { Toggle } from "./Toggle";
-import type { AmputationType, PatientInput, TargetRange } from "@/lib/types";
+import type { AmputationType, CrClMethod, PatientInput, TargetRange } from "@/lib/types";
+
+/** BMI from partial sidebar input; undefined until weight and height are valid. */
+function sidebarBmi(p: Partial<PatientInput>): number | undefined {
+  if (!p.weight || !p.height || p.weight <= 0 || p.height <= 0) return undefined;
+  const kg = p.weightUnit === "lb" ? p.weight * 0.453592 : p.weight;
+  const m = (p.heightUnit === "in" ? p.height * 2.54 : p.height) / 100;
+  return kg / (m * m);
+}
 
 const AMPUTATION_OPTIONS: { value: AmputationType; label: string }[] = [
   { value: "none",     label: "None" },
@@ -188,6 +196,29 @@ export function Sidebar({
               </p>
             )}
           </Field>
+
+          {(() => {
+            const b = sidebarBmi(patient);
+            const method: CrClMethod = patient.crClMethod ?? "cockcroft-gault";
+            if (!(b !== undefined && b >= 40) && method === "cockcroft-gault") return null;
+            return (
+              <Field label="CrCl formula (BMI ≥40)">
+                <Toggle
+                  value={method}
+                  onChange={(v) => update("crClMethod", v as CrClMethod)}
+                  options={[
+                    { label: "Cockcroft-Gault", value: "cockcroft-gault" },
+                    { label: "Salazar-Corcoran", value: "salazar-corcoran" },
+                  ]}
+                />
+                <p className="text-[10px] text-brand-300 mt-1 leading-snug">
+                  Default is Cockcroft-Gault with adjusted body weight (matches ASHP/IDSA 2020
+                  practice and MDCalc). Salazar-Corcoran is an optional alternative in morbid
+                  obesity.
+                </p>
+              </Field>
+            );
+          })()}
         </div>
       </Section>
 

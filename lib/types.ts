@@ -5,6 +5,7 @@ export type WeightUnit = "kg" | "lb";
 export type HeightUnit = "in" | "cm";
 export type CrUnit = "mg/dL" | "umol/L";
 export type VdMethod = "ambrose-winter" | "population" | "manual";
+export type CrClMethod = "cockcroft-gault" | "salazar-corcoran";
 
 /**
  * Fractional limb-weight correction used to estimate pre-amputation body weight
@@ -32,6 +33,7 @@ export interface PatientInput {
   noRenalReplacement: boolean;
   amputationType?: AmputationType;  // optional; adjusts CrCl weight only
   empiricVdLPerKg?: number;         // optional Vd override (L/kg) for empiric dosing
+  crClMethod?: CrClMethod;          // optional; default Cockcroft-Gault (AdjBW when obese). Salazar-Corcoran is opt-in.
 }
 
 export interface NormalizedPatient {
@@ -45,11 +47,12 @@ export interface NormalizedPatient {
   criticallyIll: boolean;
   noRenalReplacement: boolean;
   empiricVdLPerKg?: number;     // if set, overrides auto Vd selection in pkParams
+  crClMethod: CrClMethod;       // formula used for CrCl; default cockcroft-gault
 }
 
 export interface PKParams {
   crCl: number;                              // mL/min
-  crClMethod: "cockcroft-gault" | "salazar-corcoran";
+  crClMethod: CrClMethod;
   amputationCorrectionPct?: number;          // e.g. 5.9 for BKA; undefined when none
   vd: number;                                // L (total)
   vdPerKg: number;                           // L/kg

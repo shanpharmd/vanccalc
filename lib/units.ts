@@ -52,6 +52,7 @@ export function normalizePatient(p: PatientInput): NormalizedPatient {
     criticallyIll: p.criticallyIll,
     noRenalReplacement: p.noRenalReplacement ?? false,
     empiricVdLPerKg: p.empiricVdLPerKg,
+    crClMethod: p.crClMethod ?? "cockcroft-gault",
   };
 }
 

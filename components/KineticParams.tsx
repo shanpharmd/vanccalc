@@ -20,7 +20,7 @@ export function KineticParams({ pk }: Props) {
         <Row label={crClLabel} value={pk ? `${pk.crCl.toFixed(0)} mL/min` : "—"} />
         {pk?.crClMethod === "salazar-corcoran" && (
           <p className="text-[10px] text-brand-400 leading-snug -mt-1">
-            BMI ≥40 — Salazar-Corcoran used (more accurate in morbid obesity)
+            Salazar-Corcoran selected (opt-in). Cockcroft-Gault with AdjBW is the default.
           </p>
         )}
         {pk?.amputationCorrectionPct != null && (

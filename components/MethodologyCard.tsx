@@ -1,6 +1,7 @@
 "use client";
 
 import type { NormalizedPatient, PKParams } from "@/lib/types";
+import { crClCockcroftGault } from "@/lib/vancoMath";
 
 interface Props {
   pk: PKParams | null;
@@ -96,7 +97,7 @@ const REFS: { authors: string; title: string; citation: string; note: string }[]
     authors: "Salazar DE, Corcoran GB.",
     title: "Predicting creatinine clearance and renal drug clearance in obese patients from estimated fat-free body mass.",
     citation: "Am J Med. 1988;84(6):1053–1060.",
-    note: "CrCl formula used when BMI ≥ 40",
+    note: "Optional CrCl formula for BMI ≥ 40 (opt-in; CG-AdjBW is default)",
   },
   {
     authors: "Devine BJ.",
@@ -158,7 +159,7 @@ export function MethodologyCard({ pk, normalized }: Props) {
           label={
             <>
               Creatinine clearance
-              {usingSalazar   && <Badge variant="cyan">Salazar-Corcoran · BMI ≥40</Badge>}
+              {usingSalazar   && <Badge variant="cyan">Salazar-Corcoran · opt-in</Badge>}
               {!usingSalazar  && <Badge variant="cyan">Cockcroft-Gault</Badge>}
               {usingAmpAdjust && <Badge variant="amber">amp {pk!.amputationCorrectionPct!.toFixed(1)}%</Badge>}
             </>
@@ -257,8 +258,11 @@ export function MethodologyCard({ pk, normalized }: Props) {
               <div className="text-ink-400 dark:text-ink-500 text-[10px] mt-1">
                 AdjBW = {pk.ibw.toFixed(1)} + 0.4 × (<V>{normalized.weightKg.toFixed(1)}</V> − {pk.ibw.toFixed(1)})
                 {" "}= <R>{pk.adjBw.toFixed(1)} kg</R>
-                {cgIsObese && (
+                {cgIsObese && !usingSalazar && (
                   <span className="text-amber-500 dark:text-amber-400"> · obese, AdjBW used for CrCl</span>
+                )}
+                {usingSalazar && (
+                  <span className="text-amber-500 dark:text-amber-400"> · Salazar-Corcoran selected (CG-AdjBW would give {crClCockcroftGault(normalized).toFixed(0)} mL/min)</span>
                 )}
               </div>
             </>
