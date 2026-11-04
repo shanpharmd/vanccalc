@@ -14,6 +14,7 @@ import { TwoLevelAnalysis } from "./TwoLevelAnalysis";
 import { CrClCalculator } from "./CrClCalculator";
 import { AntibioticDosing } from "./AntibioticDosing";
 import { PredictLevels } from "./PredictLevels";
+import { CustomRegimen } from "./CustomRegimen";
 import { TimingDeviations } from "./TimingDeviations";
 import { isPatientComplete, normalizePatient, validatePatient } from "@/lib/units";
 import {
@@ -235,6 +236,7 @@ export default function CalculatorApp() {
               onSelect={handleSelect}
               selectedFrequency={selectedResult?.regimen.frequency}
             />
+            <CustomRegimen pk={pk} target={target} recommended={selectedResult} />
             <PredictedPK pk={pk} result={selectedResult} />
             <MethodologyCard pk={pk} normalized={normalized} />
             <KineticParams pk={pk} />

@@ -57,7 +57,7 @@ export function crClCockcroftGault(p: NormalizedPatient): number {
 }
 
 /**
- * Salazar-Corcoran CrCl — preferred for BMI ≥40 (morbidly obese patients).
+ * Salazar-Corcoran CrCl — optional alternative for BMI ≥40 (morbidly obese patients).
  * Incorporates height directly, avoiding the IBW/AdjBW approximation that CG requires.
  * Reference: Salazar DE, Corcoran GB. Am J Med 1988;84(6):1053-60.
  * Uses correctedWeightKg (amputation-adjusted TBW) to match the original derivation population.
@@ -76,8 +76,9 @@ export function salazarCorcoranCrCl(p: NormalizedPatient): number {
 
 export function pkParams(p: NormalizedPatient): PKParams {
   const bmiVal = bmi(p);
-  // Auto-select CrCl formula: Salazar-Corcoran at BMI ≥40, Cockcroft-Gault otherwise.
-  const useSalazar = bmiVal >= 40;
+  // Default: Cockcroft-Gault (AdjBW when TBW >1.2×IBW), matching ASHP/IDSA 2020 practice and MDCalc.
+  // Salazar-Corcoran is opt-in via patient.crClMethod (offered in the UI at BMI ≥40).
+  const useSalazar = p.crClMethod === "salazar-corcoran";
   const crCl = useSalazar ? salazarCorcoranCrCl(p) : crClCockcroftGault(p);
   const crClMethod = useSalazar ? "salazar-corcoran" as const : "cockcroft-gault" as const;
 
@@ -216,6 +217,131 @@ export function evaluateRegimen(
     trough,
     auc24,
     aucMicRatio: auc24 / mic,
+  };
+}
+
+// ---------- peak/trough-targeted dosing (traditional method) ----------
+
+/** Practical intervals a nurse can actually hang. */
+export const PRACTICAL_INTERVALS = [6, 8, 12, 18, 24, 36, 48];
+
+export interface PeakTroughSolution {
+  /** Unrounded interval that hits both targets exactly. */
+  tauExact: number;
+  /** Unrounded dose that hits the desired peak at tauExact. */
+  doseExact: number;
+  /** tauExact snapped to the nearest practical interval. */
+  tauRounded: number;
+  infusionTime: number;
+  /** What the rounded regimen actually delivers. Dose re-solved for tauRounded. */
+  rounded: RegimenResult;
+  feasible: boolean;
+  note?: string;
+}
+
+/**
+ * Dose required to reach a target steady-state peak at a given interval.
+ * Rearranged from the Cmax,ss intermittent-infusion equation:
+ *   D = Cmax · ke · Vd · tInf · (1 − e^(−ke·tau)) / (1 − e^(−ke·tInf))
+ */
+export function doseForPeak(
+  targetPeak: number,
+  tau: number,
+  tInf: number,
+  pk: PKParams
+): number {
+  return (
+    (targetPeak * pk.ke * pk.vd * tInf * (1 - Math.exp(-pk.ke * tau))) /
+    (1 - Math.exp(-pk.ke * tInf))
+  );
+}
+
+/**
+ * Traditional peak/trough-targeted dosing.
+ *
+ *   tau  = ln(Cpeak / Ctrough) / ke + tInf
+ *   dose = Cpeak · ke · Vd · tInf · (1 − e^(−ke·tau)) / (1 − e^(−ke·tInf))
+ *
+ * The exact interval is almost never a clinically usable number, so it is
+ * snapped to the nearest practical interval and the dose re-solved at that
+ * interval. AUC24 is reported alongside, because ASHP/IDSA 2020 targets AUC
+ * rather than trough; peak/trough targeting is offered as an alternate way to
+ * constrain the regimen, not as a more accurate one.
+ *
+ * Reference: Winter ME. Basic Clinical Pharmacokinetics, 5th ed. Matzke GR
+ * et al. DICP 1984 (ke from CrCl).
+ */
+export function solveFromPeakTrough(
+  pk: PKParams,
+  desiredPeak: number,
+  desiredTrough: number,
+  infusionTime = 1,
+  mic = 1
+): PeakTroughSolution {
+  const tInf = infusionTime > 0 ? infusionTime : 1;
+  const blank: Omit<PeakTroughSolution, "feasible" | "note"> = {
+    tauExact: 0,
+    doseExact: 0,
+    tauRounded: 0,
+    infusionTime: tInf,
+    rounded: evaluateRegimen(
+      { dose: 0, frequency: 12, infusionTime: tInf, doseCapped: false },
+      pk,
+      mic
+    ),
+  };
+
+  if (!(desiredPeak > 0) || !(desiredTrough > 0)) {
+    return { ...blank, feasible: false, note: "Enter a peak and trough above zero." };
+  }
+  if (desiredPeak <= desiredTrough) {
+    return {
+      ...blank,
+      feasible: false,
+      note: "Desired peak must exceed the desired trough.",
+    };
+  }
+
+  const tauExact = Math.log(desiredPeak / desiredTrough) / pk.ke + tInf;
+  if (!Number.isFinite(tauExact) || tauExact <= tInf) {
+    return {
+      ...blank,
+      feasible: false,
+      note: "No interval satisfies those targets at this clearance.",
+    };
+  }
+
+  const doseExact = doseForPeak(desiredPeak, tauExact, tInf, pk);
+
+  // Snap to the nearest interval that can actually be scheduled.
+  const tauRounded = PRACTICAL_INTERVALS.reduce((best, t) =>
+    Math.abs(t - tauExact) < Math.abs(best - tauExact) ? t : best
+  );
+
+  // Re-solve the dose at the rounded interval so the peak target still holds.
+  const doseAtRounded = doseForPeak(desiredPeak, tauRounded, tInf, pk);
+  const regimen = buildRegimen(doseAtRounded, tauRounded, 250, tInf);
+
+  const notes: string[] = [];
+  if (Math.abs(tauRounded - tauExact) >= 0.5) {
+    notes.push(
+      `Exact interval ${tauExact.toFixed(
+        1
+      )} h is not schedulable, so the dose was re-solved at q${tauRounded}h.`
+    );
+  }
+  if (regimen.doseCapped) {
+    notes.push(`Dose capped at the ${MAX_DOSE_MG} mg ceiling.`);
+  }
+
+  return {
+    tauExact,
+    doseExact,
+    tauRounded,
+    infusionTime: tInf,
+    rounded: evaluateRegimen(regimen, pk, mic),
+    feasible: true,
+    note: notes.length ? notes.join(" ") : undefined,
   };
 }
 
