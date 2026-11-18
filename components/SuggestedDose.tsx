@@ -2,16 +2,17 @@
 
 import { AlertTriangle, Sparkles } from "lucide-react";
 import { fmt } from "@/lib/vancoMath";
-import type { RegimenResult, TargetRange } from "@/lib/types";
+import type { PKParams, RegimenResult, TargetRange } from "@/lib/types";
 
 interface Props {
   result: RegimenResult | null;
   loadingDose: number | null;
   target: TargetRange;
   criticallyIll: boolean;
+  pk?: PKParams | null;
 }
 
-export function SuggestedDose({ result, loadingDose, target, criticallyIll }: Props) {
+export function SuggestedDose({ result, loadingDose, target, criticallyIll, pk }: Props) {
   return (
     <div className="card p-5 lg:col-span-5">
       <div className="flex items-center gap-2 mb-4">
@@ -47,6 +48,8 @@ export function SuggestedDose({ result, loadingDose, target, criticallyIll }: Pr
             <Row label="Predicted peak" value={`${fmt.conc(result.peak)} mcg/mL`} />
             <Row label="Predicted trough" value={`${fmt.conc(result.trough)} mcg/mL`} />
           </div>
+
+          {pk && <DoseBasis pk={pk} />}
 
           {loadingDose !== null && (
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-accent-500/30 bg-accent-500/5 p-3">
@@ -114,6 +117,47 @@ function Row({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+/** The population PK inputs behind the recommendation, so the weight and SCr basis are visible. */
+function DoseBasis({ pk }: { pk: PKParams }) {
+  const scrChanged = pk.scrAdjustment === "elderly-round" || pk.scrAdjustment === "floor";
+  const vdWeight =
+    pk.vdWeightKg != null
+      ? `${pk.vdWeightKg.toFixed(1)} kg ${pk.vdWeightBasis === "adjusted" ? "AdjBW" : "actual"}`
+      : null;
+  return (
+    <div className="mt-3 rounded-lg border border-ink-200 dark:border-ink-800 p-3">
+      <div className="stat-label mb-1.5">Dose basis</div>
+      <div className="space-y-1.5">
+        {pk.scrUsedMgDl != null && (
+          <Row
+            label="SCr used"
+            value={
+              scrChanged && pk.scrEnteredMgDl != null
+                ? `${pk.scrUsedMgDl.toFixed(2)} mg/dL (entered ${pk.scrEnteredMgDl.toFixed(2)})`
+                : `${pk.scrUsedMgDl.toFixed(2)} mg/dL`
+            }
+          />
+        )}
+        <Row label="CrCl" value={`${pk.crCl.toFixed(0)} mL/min`} />
+        <Row label="kₑ" value={`${fmt.num(pk.ke, 4)} /h`} />
+        <Row label="Vd" value={`${pk.vd.toFixed(1)} L (${pk.vdPerKg.toFixed(2)} L/kg)`} />
+        {vdWeight && <Row label="Vd weight" value={vdWeight} />}
+        <Row label="Clearance" value={`${pk.cl.toFixed(2)} L/h`} />
+      </div>
+      {pk.scrAdjustment === "elderly-round" && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-2 leading-snug">
+          SCr rounded up to 1.0 mg/dL: age 65 or older with SCr below 1.0.
+        </p>
+      )}
+      {pk.vdWeightBasis === "adjusted" && (
+        <p className="text-[11px] text-ink-500 dark:text-ink-400 mt-1 leading-snug">
+          Vd uses AdjBW because actual weight exceeds 120% of IBW.
+        </p>
+      )}
     </div>
   );
 }

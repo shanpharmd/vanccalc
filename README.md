@@ -87,7 +87,8 @@ The `lib/` package is intentionally framework-agnostic. It will be lifted into a
 | **CrCl** | Cockcroft-Gault, IBW-adjusted (×0.85 if female) |
 | **IBW** | Devine: 50 (M) / 45.5 (F) + 2.3 × (height_in − 60) |
 | **AdjBW** | IBW + 0.4 × (TBW − IBW) when TBW > 120% IBW |
-| **Vd** | 0.7 L/kg (0.8 L/kg if critically ill) |
+| **Vd** | 0.7 L/kg (0.8 L/kg if critically ill) × AdjBW when TBW > 120% IBW, otherwise TBW |
+| **SCr** | Rounded up to 1.0 mg/dL at age ≥ 65; floor 0.6 mg/dL otherwise (vancomycin engine only) |
 | **kₑ** | Matzke: 0.00083 × CrCl + 0.0044 (per hour) |
 | **CL** | kₑ × Vd |
 | **AUC₂₄** | Daily dose ÷ CL |

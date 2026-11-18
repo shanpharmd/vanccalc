@@ -162,6 +162,7 @@ export function MethodologyCard({ pk, normalized }: Props) {
               {usingSalazar   && <Badge variant="cyan">Salazar-Corcoran · opt-in</Badge>}
               {!usingSalazar  && <Badge variant="cyan">Cockcroft-Gault</Badge>}
               {usingAmpAdjust && <Badge variant="amber">amp {pk!.amputationCorrectionPct!.toFixed(1)}%</Badge>}
+              {normalized?.scrAdjustment === "elderly-round" && <Badge variant="amber">SCr rounded to 1.0</Badge>}
             </>
           }
         >
@@ -196,6 +197,11 @@ export function MethodologyCard({ pk, normalized }: Props) {
                   {normalized.sex === "female" && " × 0.85"}
                 </div>
                 <div>= <R>{pk.crCl.toFixed(0)} mL/min</R></div>
+                {normalized.scrAdjustment === "elderly-round" && normalized.scrEnteredMgDl != null && (
+                  <div className="text-amber-500 dark:text-amber-400 text-[10px] mt-1">
+                    SCr entered {normalized.scrEnteredMgDl.toFixed(2)}, rounded up to 1.00 (age 65 or older)
+                  </div>
+                )}
               </>
             )
           ) : (
@@ -235,14 +241,19 @@ export function MethodologyCard({ pk, normalized }: Props) {
         >
           {hasData && pk && normalized ? (
             <>
-              <div>Vd = <V>{pk.vdPerKg.toFixed(2)}</V> L/kg × <V>{normalized.weightKg.toFixed(1)}</V> kg</div>
+              <div>
+                Vd = <V>{pk.vdPerKg.toFixed(2)}</V> L/kg × <V>{(pk.vdWeightKg ?? normalized.weightKg).toFixed(1)}</V> kg{" "}
+                <span className="text-ink-400 dark:text-ink-500 text-[10px]">
+                  ({pk.vdWeightBasis === "adjusted" ? "AdjBW, TBW >120% IBW" : "TBW"})
+                </span>
+              </div>
               <div>= <R>{pk.vd.toFixed(1)} L</R></div>
               <div className="text-ink-400 dark:text-ink-500 text-[10px] mt-1">
                 CL = <V>{pk.ke.toFixed(4)}</V> × <V>{pk.vd.toFixed(1)}</V> = <R>{pk.cl.toFixed(2)} L/hr</R>
               </div>
             </>
           ) : (
-            <Empty>Vd = 0.70 L/kg × TBW  (0.80 if critically ill)</Empty>
+            <Empty>Vd = 0.70 L/kg × TBW, or AdjBW if TBW &gt;120% IBW  (0.80 if critically ill)</Empty>
           )}
         </FormulaBlock>
 

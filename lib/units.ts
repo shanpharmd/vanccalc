@@ -1,4 +1,4 @@
-import type { AmputationType, PatientInput, NormalizedPatient, ValidationResult } from "./types";
+import type { AmputationType, PatientInput, NormalizedPatient, ScrAdjustment, ValidationResult } from "./types";
 
 export const lbToKg = (lb: number) => lb * 0.453592;
 export const kgToLb = (kg: number) => kg / 0.453592;
@@ -13,6 +13,29 @@ export const mgDlToUmol = (m: number) => m * 88.4;
  * 0.6 mg/dL is a common conservative floor.
  */
 export const SCR_FLOOR_MG_DL = 0.6;
+
+/**
+ * Elderly SCr rounding. At age >= 65 an SCr below 1.0 mg/dL is rounded up to 1.0
+ * before CrCl is calculated, because low creatinine in older adults usually reflects
+ * low muscle mass rather than preserved GFR. Matches the Cardinal Health vancomycin
+ * calculator's "Adj SCr" field (82 y, SCr 0.88 -> 1). Applies to the vancomycin
+ * engine only; the standalone CrCl tab mirrors MDCalc and does not round.
+ */
+export const ELDERLY_SCR_AGE = 65;
+export const ELDERLY_SCR_MIN_MG_DL = 1.0;
+
+export function adjustScr(
+  rawScrMgDl: number,
+  age: number
+): { scrMgDl: number; adjustment: ScrAdjustment } {
+  if (age >= ELDERLY_SCR_AGE && rawScrMgDl < ELDERLY_SCR_MIN_MG_DL) {
+    return { scrMgDl: ELDERLY_SCR_MIN_MG_DL, adjustment: "elderly-round" };
+  }
+  if (rawScrMgDl < SCR_FLOOR_MG_DL) {
+    return { scrMgDl: SCR_FLOOR_MG_DL, adjustment: "floor" };
+  }
+  return { scrMgDl: rawScrMgDl, adjustment: "none" };
+}
 
 /**
  * Fractional body-weight contribution of each limb segment.
@@ -41,6 +64,7 @@ export function normalizePatient(p: PatientInput): NormalizedPatient {
   const correctedWeightKg = amputationFactor > 0
     ? weightKg / (1 - amputationFactor)
     : weightKg;
+  const scr = adjustScr(rawScr, p.age);
   return {
     age: p.age,
     weightKg,
@@ -48,7 +72,9 @@ export function normalizePatient(p: PatientInput): NormalizedPatient {
     amputationFactor,
     heightCm: p.heightUnit === "cm" ? p.height : inToCm(p.height),
     sex: p.sex,
-    scrMgDl: Math.max(rawScr, SCR_FLOOR_MG_DL),
+    scrMgDl: scr.scrMgDl,
+    scrEnteredMgDl: rawScr,
+    scrAdjustment: scr.adjustment,
     criticallyIll: p.criticallyIll,
     noRenalReplacement: p.noRenalReplacement ?? false,
     empiricVdLPerKg: p.empiricVdLPerKg,
@@ -102,7 +128,11 @@ export function validatePatient(
     warnings.push(
       "Renal replacement therapy (CRRT, HD, PD) not excluded. This calculator uses native-kidney PK parameters and is not validated for RRT patients. Confirm patient status before acting on these results."
     );
-  if (rawScr < SCR_FLOOR_MG_DL)
+  if (normalized.scrAdjustment === "elderly-round")
+    warnings.push(
+      `Entered SCr of ${rawScr.toFixed(2)} mg/dL rounded up to ${ELDERLY_SCR_MIN_MG_DL.toFixed(1)} mg/dL for CrCl (age ${ELDERLY_SCR_AGE} or older with SCr below ${ELDERLY_SCR_MIN_MG_DL.toFixed(1)}). This lowers the estimated clearance and the recommended dose.`
+    );
+  else if (rawScr < SCR_FLOOR_MG_DL)
     warnings.push(
       `Entered SCr of ${rawScr.toFixed(2)} mg/dL is below the CrCl calculation floor of ${SCR_FLOOR_MG_DL} mg/dL. A minimum of ${SCR_FLOOR_MG_DL} mg/dL has been applied to prevent overestimating renal function.`
     );

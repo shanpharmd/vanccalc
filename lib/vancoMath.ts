@@ -37,6 +37,17 @@ export function adjBwKg(p: NormalizedPatient): number {
   return p.weightKg > 1.2 * ibw ? ibw + 0.4 * (p.weightKg - ibw) : p.weightKg;
 }
 
+/**
+ * Weight multiplied by L/kg to get population Vd.
+ * AdjBW when actual weight exceeds 1.2x IBW, actual weight otherwise.
+ * CL here is ke x Vd, so scaling Vd linearly with total body weight in obesity
+ * overstates clearance and the dose. Matches the Cardinal Health calculator's
+ * dosing weight (82 y M, 79.1 kg, 62 in: 0.7 x 64.4 = 45.08 L).
+ */
+export function vdWeightKg(p: NormalizedPatient): number {
+  return adjBwKg(p);
+}
+
 export function bmi(p: NormalizedPatient): number {
   const m = p.heightCm / 100;
   // correctedWeightKg = estimated full-body weight; used for obesity classification.
@@ -87,9 +98,11 @@ export function pkParams(p: NormalizedPatient): PKParams {
   const ke = 0.00083 * crCl + 0.0044;
 
   // Vd: use manual override if provided, otherwise auto (ICU = 0.8 L/kg, non-ICU = 0.7 L/kg).
-  // Vd scales with actual body weight (weightKg), not corrected weight.
+  // Vd weight: AdjBW when actual weight >1.2x IBW, actual weight otherwise (see vdWeightKg).
+  // Uses measured weight, not the amputation-corrected weight.
   const vdPerKg = p.empiricVdLPerKg ?? (p.criticallyIll ? 0.8 : 0.7);
-  const vd = vdPerKg * p.weightKg;
+  const vdWt = vdWeightKg(p);
+  const vd = vdPerKg * vdWt;
   const cl = ke * vd;
   const halfLife = 0.693 / ke;
 
@@ -101,6 +114,11 @@ export function pkParams(p: NormalizedPatient): PKParams {
       : undefined,
     vd,
     vdPerKg,
+    vdWeightKg: vdWt,
+    vdWeightBasis: vdWt < p.weightKg ? "adjusted" : "actual",
+    scrUsedMgDl: p.scrMgDl,
+    scrEnteredMgDl: p.scrEnteredMgDl,
+    scrAdjustment: p.scrAdjustment,
     ke,
     halfLife,
     cl,
@@ -401,7 +419,7 @@ export function singleLevelAnalysis(
       vd = ambrosWinterVd(normalized.age, normalized.weightKg);
       break;
     case "manual":
-      vd = (input.manualVdLPerKg ?? 0.7) * normalized.weightKg;
+      vd = (input.manualVdLPerKg ?? 0.7) * vdWeightKg(normalized);
       break;
     default: // "population"
       vd = popPk.vd;

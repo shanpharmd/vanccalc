@@ -20,6 +20,7 @@
 import {
   ambrosWinterVd,
   pkParams,
+  vdWeightKg,
   recommendRegimen,
   ssPeak,
   ssTrough,
@@ -165,7 +166,7 @@ export function randomLevelAnalysis(
       vd = ambrosWinterVd(normalized.age, normalized.weightKg);
       break;
     case "manual":
-      vd = (input.manualVdLPerKg ?? 0.7) * normalized.weightKg;
+      vd = (input.manualVdLPerKg ?? 0.7) * vdWeightKg(normalized);
       break;
     default:
       vd = popPk.vd;

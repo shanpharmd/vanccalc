@@ -18,6 +18,16 @@ export function KineticParams({ pk }: Props) {
       <h3 className="card-title mb-4 border-b-2 border-accent-500 pb-2 inline-block">Kinetic Parameters</h3>
       <div className="space-y-2 text-sm">
         <Row label={crClLabel} value={pk ? `${pk.crCl.toFixed(0)} mL/min` : "—"} />
+        {pk?.scrUsedMgDl != null && (
+          <Row
+            label="SCr used for CrCl"
+            value={
+              pk.scrAdjustment && pk.scrAdjustment !== "none" && pk.scrEnteredMgDl != null
+                ? `${pk.scrUsedMgDl.toFixed(2)} mg/dL (entered ${pk.scrEnteredMgDl.toFixed(2)})`
+                : `${pk.scrUsedMgDl.toFixed(2)} mg/dL`
+            }
+          />
+        )}
         {pk?.crClMethod === "salazar-corcoran" && (
           <p className="text-[10px] text-brand-400 leading-snug -mt-1">
             Salazar-Corcoran selected (opt-in). Cockcroft-Gault with AdjBW is the default.
@@ -30,6 +40,12 @@ export function KineticParams({ pk }: Props) {
         )}
         <Row label="Elimination rate (kₑ)" value={pk ? `${fmt.num(pk.ke, 4)} /h` : "—"} />
         <Row label="Volume of distribution (Vd)" value={pk ? `${pk.vd.toFixed(1)} L (${pk.vdPerKg.toFixed(2)} L/kg)` : "—"} />
+        {pk?.vdWeightKg != null && (
+          <Row
+            label="Vd weight"
+            value={`${pk.vdWeightKg.toFixed(1)} kg ${pk.vdWeightBasis === "adjusted" ? "AdjBW" : "actual"}`}
+          />
+        )}
         <Row label="Clearance (CLᵥₐₙ꜀ₒ)" value={pk ? `${pk.cl.toFixed(2)} L/h` : "—"} />
         <Row label="Half-life (t½)" value={pk ? `${pk.halfLife.toFixed(1)} h` : "—"} />
         <Row label="IBW · AdjBW" value={pk ? `${pk.ibw.toFixed(1)} · ${pk.adjBw.toFixed(1)} kg` : "—"} />

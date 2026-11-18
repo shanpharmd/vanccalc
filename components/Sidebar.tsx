@@ -278,7 +278,8 @@ export function Sidebar({
             />
             <p className="text-[10px] text-brand-300/80 mt-1 leading-snug">
               Typical range 0.45–0.90 L/kg. Leave blank for auto (0.70; 0.80 ICU).
-              Override for burns, CHF, or patient-specific data.
+              Override for burns, CHF, or patient-specific data. Multiplied by AdjBW
+              when weight exceeds 120% of IBW.
             </p>
           </Field>
           <p className="text-[11px] text-brand-300/80 leading-snug">

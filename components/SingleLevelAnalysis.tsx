@@ -353,7 +353,7 @@ export function SingleLevelAnalysis({ normalized, populationPk, target }: Props)
             )}
             {sl.vdMethod === "population" && (
               <p className="text-[11px] text-ink-400 dark:text-ink-500 mt-2">
-                Using {normalized.criticallyIll ? "0.8" : "0.7"} L/kg × TBW from patient demographics
+                Using {normalized.criticallyIll ? "0.8" : "0.7"} L/kg × TBW (AdjBW if TBW &gt;120% IBW) from patient demographics
               </p>
             )}
             {sl.vdMethod === "manual" && (

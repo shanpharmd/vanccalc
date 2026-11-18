@@ -13,6 +13,8 @@ export function CalcInfo({ hasResult }: Props) {
         <Row label="PK model" value={hasResult ? "ASHP/IDSA 2020 · Matzke ke" : "—"} />
         <Row label="Dosing target" value="AUC₂₄/MIC 400–600" />
         <Row label="Vd assumption" value="0.7 L/kg (0.8 if ICU)" />
+        <Row label="Vd weight" value="AdjBW if >120% IBW, else actual" />
+        <Row label="SCr rounding" value="To 1.0 mg/dL at age 65+" />
         <Row label="Rounding" value="250 mg increments" />
       </div>
     </div>

@@ -229,6 +229,7 @@ export default function CalculatorApp() {
               loadingDose={loadingDose}
               target={target}
               criticallyIll={!!patient.criticallyIll}
+              pk={pk}
             />
             <CompareDosing
               options={comparison}

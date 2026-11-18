@@ -6,6 +6,10 @@ export type HeightUnit = "in" | "cm";
 export type CrUnit = "mg/dL" | "umol/L";
 export type VdMethod = "ambrose-winter" | "population" | "manual";
 export type CrClMethod = "cockcroft-gault" | "salazar-corcoran";
+/** Which rule, if any, changed the entered SCr before CrCl was calculated. */
+export type ScrAdjustment = "none" | "floor" | "elderly-round";
+/** Weight multiplied by L/kg to get population Vd. */
+export type VdWeightBasis = "actual" | "adjusted";
 
 /**
  * Fractional limb-weight correction used to estimate pre-amputation body weight
@@ -38,12 +42,14 @@ export interface PatientInput {
 
 export interface NormalizedPatient {
   age: number;
-  weightKg: number;             // actual measured weight — used for dosing and Vd
+  weightKg: number;             // actual measured weight: loading dose and mg/kg caps. Vd uses AdjBW when >1.2x IBW.
   correctedWeightKg: number;    // amputation-adjusted weight — used for CrCl only
   amputationFactor: number;     // fraction applied (0 = none; e.g. 0.059 = BKA)
   heightCm: number;
   sex: Sex;
-  scrMgDl: number;              // SCr after applying floor; use this for all PK math
+  scrMgDl: number;              // SCr after floor and elderly rounding; use this for all PK math
+  scrEnteredMgDl?: number;      // SCr exactly as entered (mg/dL), before any adjustment
+  scrAdjustment?: ScrAdjustment; // rule that changed scrMgDl, if any
   criticallyIll: boolean;
   noRenalReplacement: boolean;
   empiricVdLPerKg?: number;     // if set, overrides auto Vd selection in pkParams
@@ -56,6 +62,11 @@ export interface PKParams {
   amputationCorrectionPct?: number;          // e.g. 5.9 for BKA; undefined when none
   vd: number;                                // L (total)
   vdPerKg: number;                           // L/kg
+  vdWeightKg?: number;                       // kg multiplied by vdPerKg (population estimate only)
+  vdWeightBasis?: VdWeightBasis;             // "adjusted" when TBW >1.2x IBW
+  scrUsedMgDl?: number;                      // SCr that went into CrCl
+  scrEnteredMgDl?: number;                   // SCr as entered
+  scrAdjustment?: ScrAdjustment;
   ke: number;                                // 1/hr
   halfLife: number;                          // hr
   cl: number;                                // L/hr
